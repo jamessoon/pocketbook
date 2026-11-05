@@ -7,3 +7,6 @@ enable_anonymous_sign_ins = true
 
 [functions.post-recurring]
 verify_jwt = false
+
+[functions.monthly-report]
+verify_jwt = false
