@@ -52,3 +52,10 @@ body{margin:0;background:var(--bg);color:var(--text)}button,input,select,textare
 
 .recurring-editor select{min-width:0;width:100%;min-height:46px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit;font-size:16px}
 .budget>.section-head{margin-bottom:14px}
+
+.history-page{display:grid;gap:16px}.history-page>.month-nav{margin:0}
+.history-nav,.history-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.history-nav{margin-bottom:18px;justify-content:space-between}.history-nav>.month-nav{margin:0}.history-nav>a{display:inline-flex;align-items:center;min-height:44px}
+.history-chart{min-width:0}.history-chart details{margin-top:10px}.history-chart summary{cursor:pointer;padding:10px 0;color:var(--accent)}
+.history-controls label{display:flex;gap:6px;align-items:center;min-height:44px}.history-controls input{accent-color:var(--accent)}
+.history-category{flex:1}.history-page .card,.history-page{min-width:0}

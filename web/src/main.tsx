@@ -12,6 +12,7 @@ import {Dashboard} from './Dashboard'
 import {today} from './dates'
 import type {Household,Category,Member} from './types'
 import './style.css'
+const History = React.lazy(()=>import("./History"))
 const cache = new QueryClient({defaultOptions:{queries:{refetchOnWindowFocus:true,retry:1}}})
 document.documentElement.dataset.theme = localStorage.getItem('theme') || 'system'
 function App() {
@@ -65,9 +66,10 @@ function App() {
     <main className="content"><Routes>
     <Route path="/" element={<Dashboard {...props} onMonth={setMonth}/>}/>
     <Route path="/recurring" element={<Navigate replace to={'/settings'+location.search+'#recurring'}/>}/><Route path="/trips" element={<Trips {...props}/>}/><Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
+    {["/year","/category"].map(path=><Route key={path} path={path} element={<React.Suspense fallback={<p>Loading history…</p>}><History {...props}/></React.Suspense>}/>)}
     <Route path="/add" element={<QuickAdd {...props}/>}/><Route path="/settings" element={<Settings {...props}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/></Routes></main>
-    {location.pathname!=='/add' && <footer className="phone-action"><LinkToAdd trip={location.pathname==='/trips' ? new URLSearchParams(location.search).get('id') : null} category={location.pathname==='/expenses' ? new URLSearchParams(location.search).get('category') : null}/></footer>}</div></ExpenseDeletionProvider>
+    {location.pathname!=='/add' && <footer className="phone-action"><LinkToAdd trip={location.pathname==='/trips' ? new URLSearchParams(location.search).get('id') : null} category={location.pathname==='/category' ? new URLSearchParams(location.search).get('id') : location.pathname==='/expenses' ? new URLSearchParams(location.search).get('category') : null}/></footer>}</div></ExpenseDeletionProvider>
 }
 function LinkToAdd({category,trip}:{category:string|null;trip:string|null}){
   return <NavLink className="primary" to={category ? '/add?category='+encodeURIComponent(category) : trip ? '/add?trip='+encodeURIComponent(trip) : '/add'}><IconPlus size={19}/>Add expense</NavLink>

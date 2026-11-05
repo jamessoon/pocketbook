@@ -110,3 +110,7 @@ After migrations 008 and 009, apply `supabase/migrations/202611050010_weekly_rec
 In **Expenses**, scheduled occurrences for the selected month appear separately from posted expenses. Both display the recurring description, frequency and end date (or **No end date**).
 
 To remove an entire schedule, apply `supabase/migrations/202611050011_delete_recurring_bill.sql` and go to **Settings → Recurring costs**. Tap the trash icon beside a bill and confirm **Delete bill**. This cancels unposted occurrences and keeps previously posted expenses and their budget history.
+
+## 9. Spending history
+
+Apply `supabase/migrations/202611050012_spending_history.sql` after migration 011. Tap a category card in Overview for its selected month, posted entries, scheduled bills and trailing 12-month chart. Category shortcuts around the donut still open the keypad. **Yearly overview** next to the Overview month selector shows twelve months stacked by category, top categories and a spending breakdown. Recurring costs include posted bills plus still-scheduled occurrences; trips are separately selectable. Both averages divide by twelve, including empty months.

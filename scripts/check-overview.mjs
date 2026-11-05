@@ -21,6 +21,14 @@ try{
    await page.route('https://hh-test.supabase.co/**',async route=>{
     const url=new URL(route.request().url())
     const table=url.pathname.split('/').pop()
+    if(table==='spending_history'){
+      const {p_start,p_category}=route.request().postDataJSON()
+      const date=new Date(p_start+'T12:00:00Z')
+      if(p_category)date.setUTCMonth(date.getUTCMonth()+11)
+      return route.fulfill({json:[{month:date.toISOString().slice(0,10),category_id:'house',daily:0,fixed:0,scheduled:80,trips:15,
+        occurrences:[{id:'rent',name:'Rent',due_on:date.toISOString().slice(0,10),amount:80}]}]})
+    }
+    if(table==='expenses' && url.searchParams.has('category_id'))return route.fulfill({json:[],headers:{'Content-Range':'*/0'}})
     if(table==='delete_recurring_bill'){assert.equal(route.request().postDataJSON().p_id,bill.id);bill=null;return route.fulfill({status:204})}
     if(table==='recurring_items'){
       const method=route.request().method()
@@ -45,6 +53,22 @@ try{
    assert.equal(await house.locator('strong').innerText(),'$80.00')
    assert.equal(await house.locator('small').innerText(),'Includes $80.00 scheduled')
    assert.equal(await page.getByLabel('Quick add: House').locator('small').innerText(),'42%')
+   await house.click()
+   await page.getByRole('heading',{name:'House',exact:true}).waitFor()
+   await page.getByRole('heading',{name:'Scheduled this month'}).waitFor()
+   assert.equal(await page.locator('.hero-num').innerText(),'$80.00')
+   await page.getByRole('link',{name:'‹ Overview'}).click()
+   await page.getByRole('link',{name:'Yearly overview'}).click()
+   await page.getByText('Year total',{exact:true}).waitFor()
+   assert.equal(await page.locator('.hero-num').innerText(),'$80.00')
+   await page.getByLabel('Include recurring costs').uncheck()
+   assert.equal(await page.locator('.hero-num').innerText(),'$0.00')
+   await page.getByLabel('Include trips').check()
+   assert.equal(await page.locator('.hero-num').innerText(),'$15.00')
+   await page.getByLabel('Previous year').click()
+   await page.getByText('Year total',{exact:true}).waitFor()
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+   await page.getByRole('link',{name:'‹ Overview'}).click()
    housePosted=true
    await page.reload()
    await page.getByText('Remaining this month').waitFor()
