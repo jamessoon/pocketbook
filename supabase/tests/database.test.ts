@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('applies all three recurring deletion scopes to entries, reserves and future posting', async()=>{
+    await database.exec(readFileSync(new URL('./recurring_deletion.sql',import.meta.url),'utf8'));
+  });
   it('honors exact From and To dates for monthly posting and reservations',async()=>{
     await database.exec(readFileSync(new URL('./recurring_ranges.sql',import.meta.url),'utf8'));
   });
