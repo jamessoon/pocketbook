@@ -50,5 +50,12 @@
     "recurring":[{"id":"limited","start":"2026-03-01","end":"2026-04-29","interval":1,"day":31,"amount":30}],
     "expenses":[],
     "expected":{"days_left":30,"fixed_costs":0,"day_to_day_spent":0,"spent_today":0,"daily_budget":30,"left_today":30,"remaining":900}
+  },
+  {
+    "name":"Four weekly occurrences across a month boundary",
+    "today":"2026-02-08","month":"2026-02-01","budget":700,
+    "recurring":[{"id":"lesson","interval":0,"day":31,"start":"2026-01-01","end":"2026-02-28","amount":10}],
+    "expenses":[{"date":"2026-02-07","amount":14,"fixed":true,"recurringId":"lesson","occurrenceOn":"2026-02-07"}],
+    "expected":{"fixed_costs":44,"days_left":21,"remaining":656}
   }
 ]

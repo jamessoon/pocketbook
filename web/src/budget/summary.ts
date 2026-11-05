@@ -5,6 +5,7 @@ export interface BudgetExpense {
   trip?: boolean;
   fixed?: boolean;
   recurringId?: string;
+  occurrenceOn?: string;
   confirmed?: boolean;
 }
 export interface RecurringCost {
@@ -17,6 +18,8 @@ export interface RecurringCost {
   end?: string;
   stopFromMonth?: string;
   skippedMonths?: string[];
+  stopFromDate?: string;
+  skippedDates?: string[];
 }
 export interface BudgetInput {
   today: string;
@@ -47,18 +50,28 @@ export function calculateBudget(input: BudgetInput) {
 
   const fixedItems = input.recurring.flatMap(item => {
     const elapsed = monthIndex(first) - monthIndex(item.start);
-    if (item.skippedMonths?.includes(first) || (item.stopFromMonth && first >= item.stopFromMonth)) return [];
-    if (item.active === false || elapsed < 0 || elapsed % item.interval !== 0) return [];
-    const dueDate = month + '-' + String(Math.min(item.day, monthLength)).padStart(2, '0');
-    if (item.end && dueDate > item.end) return [];
-    const posted = entries.find(entry => entry.fixed && entry.recurringId === item.id);
-    return [{
-      id: item.id,
-      due_on: dueDate,
-      amount: posted?.amount ?? item.amount,
-      posted: Boolean(posted),
-      confirmed: posted ? posted.confirmed !== false : false,
-    }];
+    if(item.active===false || elapsed<0)return [];
+    const weekly=item.interval===0;
+    let dueDays:number[];
+    if(weekly){
+      const start=new Date(item.start+'T00:00:00Z');
+      const lastStartDay=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth()+1,0)).getUTCDate();
+      start.setUTCDate(Math.min(item.day,lastStartDay));
+      const delta=Math.round((Date.parse(first+'T00:00:00Z')-start.getTime())/86400000);
+      const firstDue=1-delta+7*Math.max(0,Math.ceil(delta/7));
+      dueDays=[];
+      for(let day=firstDue;day<=monthLength;day+=7)dueDays.push(day);
+    }else{
+      if(item.skippedMonths?.includes(first) || (item.stopFromMonth && first>=item.stopFromMonth) || elapsed%item.interval!==0)return [];
+      dueDays=[Math.min(item.day,monthLength)];
+    }
+    return dueDays.flatMap(day=>{
+      const dueDate=month+'-'+String(day).padStart(2,'0');
+      if((item.end && dueDate>item.end) || (item.stopFromDate && dueDate>=item.stopFromDate) || item.skippedDates?.includes(dueDate))return [];
+      const posted=weekly ? input.expenses.find(e=>e.fixed && !e.trip && e.recurringId===item.id && e.occurrenceOn===dueDate)
+        : entries.find(e=>e.fixed && e.recurringId===item.id && !e.occurrenceOn);
+      return [{id:item.id,due_on:dueDate,amount:posted?.amount ?? item.amount,posted:Boolean(posted),confirmed:posted ? posted.confirmed!==false : false}];
+    });
   });
   const fixed = fixedItems.reduce((sum, item) => sum + cents(item.amount), 0);
   const prior = dailyEntries.filter(entry => entry.date < anchor)

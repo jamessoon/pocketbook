@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('posts weekly and yearly and applies weekly deletion to exact occurrences',async()=>{
+    await database.exec(readFileSync(new URL('./weekly_recurrence.sql',import.meta.url),'utf8'));
+  });
   it('applies all three recurring deletion scopes to entries, reserves and future posting', async()=>{
     await database.exec(readFileSync(new URL('./recurring_deletion.sql',import.meta.url),'utf8'));
   });
@@ -85,9 +88,9 @@ describe.each(fixtures)('$name', fixture => {
       }
       for (const entry of fixture.expenses) {
         await tx.query(`insert into public.expenses
-          (household_id,category_id,spent_on,amount_sgd,original_amount,trip_id,recurring_item_id,is_fixed,sgd_confirmed)
-          values($1,$2,$3,$4,$4,$5,$6,$7,$8)`,[household,category,entry.date,entry.amount,entry.trip ? trip : null,
-            entry.recurringId ? recurringKeys.get(entry.recurringId) : null, Boolean(entry.fixed),entry.confirmed !== false]);
+          (household_id,category_id,spent_on,amount_sgd,original_amount,trip_id,recurring_item_id,is_fixed,sgd_confirmed,occurrence_on)
+          values($1,$2,$3,$4,$4,$5,$6,$7,$8,$9)`,[household,category,entry.date,entry.amount,entry.trip ? trip : null,
+            entry.recurringId ? recurringKeys.get(entry.recurringId) : null, Boolean(entry.fixed),entry.confirmed !== false,entry.occurrenceOn ?? null]);
       }
       const response = await tx.query<{ summary: ReturnType<typeof calculateBudget> }>(
         'select hh_private.month_summary_at($1,$2,$3) as summary',[household,fixture.month,fixture.today]);
