@@ -23,7 +23,7 @@ begin
   perform public.widget_add_expense(t,cat,10.25,'Pet supplies');
   s:=public.widget_summary(t);
   if (s->>'spent')::numeric<>10.25 or s->'recent'->0->>'label'<>'Pet supplies'
-    or jsonb_array_length(public.widget_categories(t))<>8 or public.widget_categories(t)->0->>'id'<>cat::text
+    or jsonb_array_length(public.widget_categories(t))<>14 or not public.widget_categories(t) @> jsonb_build_array(jsonb_build_object('id',cat))
     or public.widget_suggestions(t,cat)->>0<>'Pet supplies' then raise exception 'Wrong widget response'; end if;
 end $$;
 set local role authenticated;
