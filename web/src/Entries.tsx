@@ -6,7 +6,7 @@ import { supabase } from "./client";
 import { CategoryIcon } from "./icons";
 import { today, shiftMonth } from "./dates";
 import type { Category, Household, Member } from "./types";
-import { asCents, currencyOrder, dateLabel, formatMoney, pressKey, rememberCurrency } from "./entry-helpers";
+import { asCents, currencyOrder, dateLabel, formatMoney, keypadDisplay, keypadInput, pressKey, rememberCurrency } from "./entry-helpers";
 import "./entries.css";
 
 export interface EntryProps {
@@ -82,14 +82,15 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
   const client = useQueryClient();
   const day = today(household.timezone);
   const [categoryId, setCategory] = useState(original?.category_id || categories.find(c => !c.archived && c.id === preselected)?.id || "");
-  const [amount, setAmount] = useState(original ? String(Number(original.original_amount)) : "0");
+  const [amount, setAmount] = useState(() => keypadInput(Number(original?.original_amount || 0), original?.original_currency || "SGD"));
   const [currency, setCurrency] = useState(original?.original_currency || "SGD");
   const [description, setDescription] = useState(original?.description || "");
   const [date, setDate] = useState(original?.spent_on || day);
   const [sheet, setSheet] = useState<"currency" | "date" | null>(null);
   const [filter, setFilter] = useState("");
   const requestId = useRef<string>();
-  const amountValue = Number(amount);
+  const displayedAmount = keypadDisplay(amount, currency);
+  const amountValue = Number(displayedAmount);
   const foreign = currency !== "SGD";
   const sameMoney = !!original && currency === original.original_currency && amountValue === Number(original.original_amount);
   const active = categories.filter(c => !c.archived || c.id === original?.category_id);
@@ -157,7 +158,7 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
     <div className="ee-form">
       <header className="ee-heading"><button className="ee-icon-btn" aria-label="Close expense form" onClick={() => navigate(original ? "/expenses" : "/")}><IconX size={20}/></button>
         <h1>{original ? "Edit expense" : "Add expense"}</h1><span/></header>
-      <div className="ee-amount"><output aria-label="Amount">{amount}</output><button className="ee-currency" onClick={() => openSheet("currency")}>{currency}<IconChevronRight size={14}/></button></div>
+      <div className="ee-amount"><output aria-label="Amount">{displayedAmount}</output><button className="ee-currency" onClick={() => openSheet("currency")}>{currency}<IconChevronRight size={14}/></button></div>
       <div className="ee-slots" aria-label="Categories">
         {active.map(c => <button key={c.id} aria-pressed={c.id === categoryId} title={c.name} onClick={() => setCategory(c.id)}>
           <CategoryGlyph category={c}/><span>{c.name}</span></button>)}
@@ -176,7 +177,7 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
       {save.error && <Problem error={save.error}/>}
       <div className="ee-pad" aria-label="Numeric keypad">
         {["1","2","3","4","5","6","7","8","9",".","0","delete"].map(key =>
-          <button key={key} aria-label={key === "delete" ? "Backspace" : key} onClick={() => setAmount(value => pressKey(value, key))}>{key === "delete" ? <IconBackspace size={23}/> : key}</button>)}
+          <button key={key} aria-label={key === "delete" ? "Backspace" : key} onClick={() => setAmount(value => pressKey(value, key, currency))}>{key === "delete" ? <IconBackspace size={23}/> : key}</button>)}
       </div>
       <button className="ee-save" disabled={!canSave || save.isPending} onClick={() => save.mutate()}><IconCheck size={18}/>{save.isPending ? "Saving…" : original ? "Save changes" : "Save expense"}</button>
     </div>
@@ -185,7 +186,7 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
         <label className="ee-filter"><IconSearch size={18}/><input placeholder="Search" aria-label="Search options" value={filter} onChange={e => setFilter(e.target.value)}/></label>
         <div className="ee-options">
           {currencyOrder(household.id).filter(c => c.includes(filter.trim().toUpperCase())).map(c =>
-              <button key={c} onClick={() => { setCurrency(c); setSheet(null); }}>{c}{c === currency && <IconCheck size={16}/>}</button>)}
+              <button key={c} onClick={() => { if (c !== currency) { setAmount(keypadInput(amountValue, c)); setCurrency(c); } setSheet(null); }}>{c}{c === currency && <IconCheck size={16}/>}</button>)}
         </div>
       </>}
     </Sheet>}

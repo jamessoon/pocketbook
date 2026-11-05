@@ -1,12 +1,23 @@
 export const currencies = ["SGD", "VND", "MYR", "JPY", "USD", "THB", "AUD", "CAD", "CHF", "CNY", "EUR", "GBP", "HKD", "IDR", "INR", "KRW", "NZD", "PHP", "TWD"];
 
-export function pressKey(value: string, key: string) {
+export function pressKey(value: string, key: string, currency = "SGD") {
   if (key === "delete") return value.slice(0, -1) || "0";
-  if (key === ".") return value.includes(".") ? value : value + ".";
+  if (key === ".") return value.includes(".") || value.length > 10 ? value : value + ".";
   if (!/^\d$/.test(key)) return value;
   const [whole, fraction] = value.split(".");
-  if ((fraction !== undefined && fraction.length >= 2) || (fraction === undefined && whole.length >= 10)) return value;
+  if ((fraction !== undefined && fraction.length >= 2) || (fraction === undefined && whole.length >= (currency === "SGD" ? 12 : 10))) return value;
   return value === "0" ? key : value + key;
+}
+
+// SGD digits represent cents until the user explicitly presses the decimal key.
+export function keypadDisplay(input: string, currency: string) {
+  if (currency !== "SGD" || input.includes(".")) return input;
+  const digits = input.padStart(3, "0");
+  return digits.slice(0, -2) + "." + digits.slice(-2);
+}
+
+export function keypadInput(amount: number, currency: string) {
+  return currency === "SGD" ? String(Math.round(amount * 100)) : String(amount);
 }
 
 export function asCents(value: number) {
