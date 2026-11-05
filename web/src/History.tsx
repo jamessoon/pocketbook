@@ -1,7 +1,7 @@
-import {useState} from 'react'
+import {useEffect,useRef,useState,type ReactNode} from 'react'
 import {Link,useLocation,useSearchParams} from 'react-router-dom'
 import {useQuery} from '@tanstack/react-query'
-import {Bar,BarChart,CartesianGrid,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts'
+import {Bar,BarChart,LabelList,CartesianGrid,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts'
 import {IconChevronLeft,IconChevronRight} from '@tabler/icons-react'
 import {supabase} from './client'
 import {today,shiftMonth} from './dates'
@@ -23,21 +23,26 @@ function useHistory(household:string,start:string,category:string|null){
   }})
 }
 type Totals=ReturnType<typeof summarize>
-function HistoryChart({totals,categories,byCategory=false}:{totals:Totals;categories:Category[];byCategory?:boolean}){
-  const chartRows=totals.months.map(m=>({...m,label:shortMonth(m.month),...m.byCategory}))
+function HistoryChart({totals,categories,byCategory=false,controls}:{totals:Totals;categories:Category[];byCategory?:boolean;controls?:ReactNode}){
   const legend=categories.filter(c=>totals.ranked.some(r=>r.id===c.id))
-  return <div className="history-chart"><ResponsiveContainer width="100%" height={226}>
-    <BarChart data={chartRows} margin={{top:8,right:6,left:0,bottom:2}} accessibilityLayer>
+  const zeros=Object.fromEntries(legend.map(c=>[c.id,0]))
+  const chartRows=totals.months.filter(m=>!byCategory || m.total>0).map(m=>({...m,label:shortMonth(m.month),...zeros,...m.byCategory}))
+  return <div className="history-chart">{chartRows.length===0 ? <p>No spending for this selection.</p> : <ResponsiveContainer width="100%" height={226}>
+    <BarChart data={chartRows} margin={{top:24,right:6,left:0,bottom:2}} accessibilityLayer>
       <CartesianGrid vertical={false} stroke="var(--line)"/>
       <XAxis dataKey="label" stroke="var(--muted)" tick={{fontSize:11}} minTickGap={12} axisLine={false} tickLine={false}/>
       <YAxis width={52} stroke="var(--muted)" tick={{fontSize:10}} axisLine={false} tickLine={false}
         tickFormatter={v=>new Intl.NumberFormat('en-SG',{notation:'compact'}).format(Number(v))}/>
       <Tooltip formatter={value=>formatMoney(Number(value))} labelFormatter={(_,items)=>items[0]?.payload?.month ? fullMonth(items[0].payload.month) : ''}
         contentStyle={{background:'var(--surface)',border:'1px solid var(--line)',borderRadius:8}} cursor={{fill:'var(--tint)'}}/>
-      {byCategory ? legend.map(c=><Bar key={c.id} name={c.name} dataKey={c.id} stackId="month" fill={c.color} isAnimationActive={false}/>)
+      {byCategory ? legend.map((c,index)=><Bar key={c.id} name={c.name} dataKey={c.id} stackId="month" fill={c.color} maxBarSize={42} isAnimationActive={false}>
+        {index===legend.length-1 && chartRows.length<=6 && <LabelList dataKey="total" position="top" fill="var(--muted)" fontSize={10}
+          formatter={value=>Number(value)>0 ? new Intl.NumberFormat('en-SG',{style:'currency',currency:'SGD',currencyDisplay:'narrowSymbol',notation:'compact'}).format(Number(value)) : ''}/>}
+      </Bar>)
         : <><Bar name="Posted" dataKey="posted" stackId="month" fill={categories[0]?.color || 'var(--accent)'} isAnimationActive={false}/>
           <Bar name="Scheduled" dataKey="scheduled" stackId="month" fill="var(--warm)" isAnimationActive={false}/></>}
-    </BarChart></ResponsiveContainer>
+    </BarChart></ResponsiveContainer>}
+    {controls}
     <details><summary>Monthly figures</summary><dl>{totals.months.map(m=><div key={m.month}><dt>{fullMonth(m.month)}</dt><dd>{formatMoney(m.total)}{m.scheduled>0 && <small> · {formatMoney(m.scheduled)} scheduled</small>}</dd></div>)}</dl></details>
   </div>
 }
@@ -80,22 +85,56 @@ function CategoryHistory({props,category,month,change}:{props:EntryProps;categor
   </section>
 }
 
+function LegendButton({category,shown,toggle,isolate}:{category:Category;shown:boolean;toggle:()=>void;isolate:()=>void}){
+  const timer=useRef<ReturnType<typeof setTimeout> | null>(null)
+  const origin=useRef({x:0,y:0})
+  const held=useRef(false)
+  function clear(){if(timer.current!==null)clearTimeout(timer.current);timer.current=null}
+  useEffect(()=>clear,[])
+  return <button type="button" aria-pressed={shown} title={'Hold or Shift+Enter to show only '+category.name}
+    onPointerDown={e=>{
+      clear();held.current=false
+      if(e.button!==0 || !e.isPrimary)return
+      origin.current={x:e.clientX,y:e.clientY}
+      timer.current=setTimeout(()=>{held.current=true;isolate();clear()},500)
+    }}
+    onPointerMove={e=>{if(Math.hypot(e.clientX-origin.current.x,e.clientY-origin.current.y)>10)clear()}}
+    onPointerUp={clear} onPointerLeave={clear} onPointerCancel={clear} onBlur={clear}
+    onContextMenu={e=>e.preventDefault()}
+    onKeyDown={e=>{if(e.shiftKey&&(e.key==='Enter'||e.key===' ')){e.preventDefault();isolate()}}}
+    onClick={e=>{if(e.detail===0 || !held.current)toggle();held.current=false}}>
+    <span style={{backgroundColor:category.color}}/>{category.name}
+  </button>
+}
+
 function YearHistory({props,year,change}:{props:EntryProps;year:number;change:(n:number)=>void}){
   const [fixed,setFixed]=useState(true),[trips,setTrips]=useState(false)
   const start=year+'-01-01'
   const query=useHistory(props.household.id,start,null)
-  const totals=summarize(query.data || [],start,fixed,trips)
+  const [hidden,setHidden]=useState<Set<string>>(()=>new Set())
+  const all=summarize(query.data || [],start,fixed,trips)
+  const available=props.categories.filter(c=>all.ranked.some(r=>r.id===c.id))
+  const totals=summarize((query.data || []).filter(row=>!hidden.has(row.category_id)),start,fixed,trips)
+  const filtered=available.some(c=>hidden.has(c.id))
+  function toggle(id:string){setHidden(old=>{const next=new Set(old);if(next.has(id))next.delete(id);else next.add(id);return next})}
+  const legend=available.length>0 && <div className="year-legend" role="group" aria-label="Chart categories">
+    <small>Tap to toggle · Hold to show only one</small>
+    <div>{available.map(c=><LegendButton key={c.id} category={c} shown={!hidden.has(c.id)} toggle={()=>toggle(c.id)}
+      isolate={()=>setHidden(new Set(props.categories.filter(other=>other.id!==c.id).map(other=>other.id)))}/>)}
+      {filtered && <button type="button" onClick={()=>setHidden(new Set())}>Show all</button>}
+    </div>
+  </div>
   return <section className="history-page"><Link to="/">‹ Overview</Link><h1>Yearly overview</h1>
     <div className="month-nav"><button aria-label="Previous year" disabled={year<=1900} onClick={()=>change(year-1)}><IconChevronLeft/></button><span>{year}</span><button aria-label="Next year" disabled={year>=2099} onClick={()=>change(year+1)}><IconChevronRight/></button></div>
     <div className="history-controls"><label><input type="checkbox" checked={fixed} onChange={e=>setFixed(e.target.checked)}/>Include recurring costs</label>
       <label><input type="checkbox" checked={trips} onChange={e=>setTrips(e.target.checked)}/>Include trips</label></div>
     {query.isPending?<p>Loading year…</p>:query.error?<HistoryError error={query.error} retry={()=>query.refetch()}/>:<>
-      <section className="card"><small>Year total</small><strong className="hero-num">{formatMoney(totals.total)}</strong>
+      <section className="card"><h2>Monthly spending by category</h2><HistoryChart totals={totals} categories={props.categories} byCategory controls={legend}/></section>
+      <section className="card"><small>{filtered?'Selected categories total':'Year total'}</small><strong className="hero-num">{formatMoney(totals.total)}</strong>
         <p className="muted">{formatMoney(totals.average)} monthly average across 12 months</p><dl>
         <div><dt>Day-to-day</dt><dd>{formatMoney(totals.daily)}</dd></div>
         {fixed&&<><div><dt>Recurring · posted</dt><dd>{formatMoney(totals.fixed)}</dd></div><div><dt>Recurring · scheduled</dt><dd>{formatMoney(totals.scheduled)}</dd></div></>}
         {trips&&<div><dt>Trips</dt><dd>{formatMoney(totals.trips)}</dd></div>}</dl></section>
-      <section className="card"><h2>Monthly spending by category</h2><HistoryChart totals={totals} categories={props.categories} byCategory/></section>
       <section className="card"><h2>Top categories</h2>{!totals.ranked.length&&<p>No spending for this selection.</p>}
         {totals.ranked.map(({id,amount})=>{const cat=props.categories.find(c=>c.id===id)
           return <div key={id} className="trip-row"><span style={{color:cat?.color}}><CategoryIcon name={cat?.icon || 'dots'} size={17}/></span><span className="history-category">{cat?.name || 'Category'}</span><strong>{formatMoney(amount)}</strong></div>})}</section>
@@ -108,7 +147,7 @@ export default function History(props:EntryProps){
   if(pathname==='/year'){
     const input=params.get('year')
     const year=input && /^(19|20)\d\d$/.test(input)?Number(input):Number(today(props.household.timezone).slice(0,4))
-    return <YearHistory props={props} year={year} change={n=>setParams({year:String(n)})}/>
+    return <YearHistory key={year} props={props} year={year} change={n=>setParams({year:String(n)})}/>
   }
   const category=props.categories.find(c=>c.id===params.get('id'))
   if(!category)return <section><Link to="/">‹ Overview</Link><p>This category is unavailable.</p></section>
