@@ -2,6 +2,7 @@ import {Link} from 'react-router-dom'
 import {useQuery} from '@tanstack/react-query'
 import {IconChevronLeft,IconChevronRight,IconPlus,IconCalendarMonth,IconChevronRight as Arrow,IconCircleCheck,IconAlertCircle} from '@tabler/icons-react'
 import {supabase} from './client'
+import {TripStrip} from './Trips'
 import {CategoryIcon} from './icons'
 import {shiftMonth,today} from './dates'
 import type {Category,Household} from './types'
@@ -53,6 +54,6 @@ export function Dashboard({household,categories,month,onMonth}:{household:Househ
    <section className="card budget"><h2>Household budget</h2><small>Remaining this month</small><strong className="hero-num">{cash(s.remaining)}</strong><div className="budget-bar" aria-label="Fixed costs and day-to-day spending as shares of budget">{[s.fixed_costs,s.day_to_day_spent].map((x,i)=><i key={i} style={{width:Math.min(100,100*x/Math.max(1,s.monthly_budget))+'%'}}/>)}</div>
    <dl><div><dt>Fixed costs</dt><dd>{cash(s.fixed_costs)}</dd></div><div><dt>Day-to-day spending</dt><dd>{cash(s.day_to_day_spent)}</dd></div>{current&&<><div><dt>Daily budget</dt><dd>{cash(s.daily_budget)}</dd></div><div><dt>Left today</dt><dd className={s.left_today<0?'negative':''}>{cash(s.left_today)}</dd></div></>}</dl>
    {s.fixed_items?.map((f,i)=><div key={i} className="fixed-line">{f.posted&&<IconCircleCheck size={16}/>} {f.name} · {f.posted?'Paid':f.due_on} · {f.confirmed?'':'~'}{cash(f.amount)}</div>)}</section></div>
-   <section className="category-section"><div className="section-head"><h2>Categories</h2><Link to="/settings">Manage categories</Link></div><div className="category-grid">{rows.map(c=><div key={c.id} className="category-card"><Link className="category-link" to={'/expenses?category='+c.id}><span className="glyph" style={{color:c.color}}><CategoryIcon name={c.icon} size={21}/></span><span>{c.name}<strong>{cash(c.value)}</strong></span></Link>{!c.archived&&<Link className="category-add" aria-label={'Add '+c.name+' expense'} to={'/add?category='+c.id}><IconPlus size={18}/></Link>}</div>)}</div></section></>}
+   <TripStrip householdId={household.id} day={today(household.timezone)}/><section className="category-section"><div className="section-head"><h2>Categories</h2><Link to="/settings">Manage categories</Link></div><div className="category-grid">{rows.map(c=><div key={c.id} className="category-card"><Link className="category-link" to={'/expenses?category='+c.id}><span className="glyph" style={{color:c.color}}><CategoryIcon name={c.icon} size={21}/></span><span>{c.name}<strong>{cash(c.value)}</strong></span></Link>{!c.archived&&<Link className="category-add" aria-label={'Add '+c.name+' expense'} to={'/add?category='+c.id}><IconPlus size={18}/></Link>}</div>)}</div></section></>}
    </>
 }

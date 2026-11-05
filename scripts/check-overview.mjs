@@ -20,7 +20,7 @@ try{
     const url=new URL(route.request().url())
     const table=url.pathname.split('/').pop()
     const result=table==='members'?[member]
-      :table==='households'?household:table==='categories'?[category]
+      :table==='trips'?[]:table==='households'?household:table==='categories'?[category]
       :table==='month_summary'?{monthly_budget:2000,fixed_costs:100,day_to_day_spent:12,daily_budget:60,left_today:48,remaining:1888,fixed_items:[]}
       :[{id:'expense1',category_id:'food',is_fixed:false,amount_sgd:12},{id:'fixed1',category_id:'food',is_fixed:true,amount_sgd:100}]
     await route.fulfill({status:200,headers:{'Content-Range':'0-0/1','Access-Control-Expose-Headers':'Content-Range'},json:result})

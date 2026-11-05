@@ -38,3 +38,5 @@ body{margin:0;background:var(--bg);color:var(--text)}button,input,select,textare
   .ee-slots button>span:last-child{white-space:normal;overflow-wrap:anywhere}
   .ee-pad button,.ee-save{min-height:clamp(44px,6dvh,58px)}
 }
+
+.trip-page{display:grid;gap:16px}.trip-page>.section-head button{flex-shrink:0}.trip-strip,.trip-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.trip-strip{margin-top:18px}.trip-strip a{display:inline-flex;align-items:center;min-height:44px;padding:4px 14px;border:1px solid var(--line);border-radius:9px;text-decoration:none;background:var(--surface)}.trip-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:12px;text-decoration:none;border-bottom:1px solid var(--line);color:var(--text)}.trip-row small{display:block}.ee-details{align-items:center}.ee-details button{min-width:0;overflow-wrap:anywhere}.ee-details small{font-size:11px;line-height:1.15;max-width:115px}

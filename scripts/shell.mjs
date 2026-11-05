@@ -13,7 +13,7 @@ self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=
 self.addEventListener('fetch',event=>{
  const u=new URL(event.request.url)
  if(event.request.method!=='GET'||u.origin!==self.location.origin)return
- if(event.request.mode==='navigate' && ['/','/auth/callback','/expenses','/confirm','/settings','/add'].includes(u.pathname)){
+ if(event.request.mode==='navigate' && ['/','/auth/callback','/expenses','/confirm','/settings','/add','/trips'].includes(u.pathname)){
    event.respondWith(fetch(event.request).catch(()=>caches.open(key).then(c=>c.match('/index.html'))));return
  }
  if(!u.search && paths.includes(u.pathname))event.respondWith(caches.open(key).then(c=>c.match(u.pathname)).then(hit=>hit || fetch(event.request)))

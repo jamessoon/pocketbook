@@ -7,6 +7,7 @@ import {IconHome,IconListDetails,IconSettings,IconPlus,IconWallet} from '@tabler
 import {configured,supabase} from './client'
 import {Auth,Settings} from './Account'
 import {QuickAdd,ExpenseList,Confirm,ExpenseDeletionProvider} from './Entries'
+import {Trips} from './Trips'
 import {Dashboard} from './Dashboard'
 import {today} from './dates'
 import type {Household,Category,Member} from './types'
@@ -63,13 +64,13 @@ function App() {
     {location.pathname!=='/add' && <header className="phone-header"><nav aria-label="Main navigation">{nav.map(({to,name})=><NavLink to={to} end key={to}>{name}</NavLink>)}</nav></header>}
     <main className="content"><Routes>
     <Route path="/" element={<Dashboard {...props} onMonth={setMonth}/>}/>
-    <Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
+    <Route path="/trips" element={<Trips {...props}/>}/><Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
     <Route path="/add" element={<QuickAdd {...props}/>}/><Route path="/settings" element={<Settings {...props}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/></Routes></main>
-    {location.pathname!=='/add' && <footer className="phone-action"><LinkToAdd category={location.pathname==='/expenses' ? new URLSearchParams(location.search).get('category') : null}/></footer>}</div></ExpenseDeletionProvider>
+    {location.pathname!=='/add' && <footer className="phone-action"><LinkToAdd trip={location.pathname==='/trips' ? new URLSearchParams(location.search).get('id') : null} category={location.pathname==='/expenses' ? new URLSearchParams(location.search).get('category') : null}/></footer>}</div></ExpenseDeletionProvider>
 }
-function LinkToAdd({category}:{category:string|null}){
-  return <NavLink className="primary" to={category ? '/add?category='+encodeURIComponent(category) : '/add'}><IconPlus size={19}/>Add expense</NavLink>
+function LinkToAdd({category,trip}:{category:string|null;trip:string|null}){
+  return <NavLink className="primary" to={category ? '/add?category='+encodeURIComponent(category) : trip ? '/add?trip='+encodeURIComponent(trip) : '/add'}><IconPlus size={19}/>Add expense</NavLink>
 }
 function Brand(){return <div className="brand"><span><IconWallet size={23} stroke={1.8}/></span>HHExpense</div>}
 createRoot(document.getElementById('root')!).render(<React.StrictMode><QueryClientProvider client={cache}><BrowserRouter><App/></BrowserRouter></QueryClientProvider></React.StrictMode>)
