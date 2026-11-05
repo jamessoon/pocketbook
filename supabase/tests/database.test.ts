@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('scopes widget reads and writes and revokes rotated tokens', async () => {
+    await database.exec(readFileSync(new URL('./widget.sql', import.meta.url), 'utf8'));
+  });
   it('isolates two households and permits audited shared editing', async () => {
     await database.exec(readFileSync(new URL('./household_isolation.sql', import.meta.url), 'utf8'));
   });
