@@ -84,6 +84,6 @@ These browser scripts intercept backend traffic and exercise light and dark mode
 
 ## 7. Trips and group expenses
 
-Apply `supabase/migrations/202611050006_trips.sql` once to enable trip creation and editing. From **Overview → Trips**, create a trip with dates and an optional SGD budget. Open it and use **Add expense**. You can also select a trip in the regular keypad, or edit an existing expense to move it into or out of a trip.
+Apply `supabase/migrations/202611050006_trips.sql` once to enable trip creation and editing. From **Trips**, create a trip with dates and an optional SGD budget. Open it and use **Add expense**. You can also select a trip in the regular keypad, or edit an existing expense to move it into or out of a trip.
 
 If exactly one unarchived trip covers today, quick add selects it by default. Choose **No trip** for everyday purchases. Overlapping trips require a choice. Trip totals include estimates until confirmed. Monthly and daily household budgets exclude trip spending. Archiving a trip preserves its expense history.

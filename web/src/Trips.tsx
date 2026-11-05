@@ -10,15 +10,6 @@ import type {EntryProps} from './Entries'
 const shortDate=(value:string)=>dateLabel(value,{day:'numeric',month:'short',year:'numeric'})
 const reason=(e:unknown)=>typeof e==='object' && e && 'message' in e ? String(e.message) : 'Please try again.'
 
-export function TripStrip({householdId,day}:{householdId:string;day:string}){
-  const trips=useTrips(householdId)
-  const cutoff=new Date(day+'T12:00:00Z')
-  cutoff.setUTCDate(cutoff.getUTCDate()-30)
-  const recent=trips.data?.filter(t=>!t.archived && t.start_date<=day && t.end_date>=cutoff.toISOString().slice(0,10))
-  return <section className="trip-strip"><Link to="/trips">Trips</Link>
-    {recent?.slice(0,3).map(t=><Link key={t.id} to={'/trips?id='+t.id}>{t.name}</Link>)}</section>
-}
-
 function TripEditor({trip,householdId,day,onClose,onSaved}:{trip?:Trip;householdId:string;day:string;onClose:()=>void;onSaved:(id:string)=>void}){
   const [name,setName]=useState(trip?.name || '')
   const [start,setStart]=useState(trip?.start_date || day)
@@ -36,7 +27,7 @@ function TripEditor({trip,householdId,day,onClose,onSaved}:{trip?:Trip;household
     return data.id as string
   },onSuccess:async id=>{await cache.invalidateQueries({queryKey:['trips',householdId]});onSaved(id)}})
   function submit(e:FormEvent){e.preventDefault();save.mutate()}
-  return <form className="account-form card" onSubmit={submit}><h2>{trip?'Edit trip':'New trip'}</h2>
+  return <form className="trip-editor card" onSubmit={submit}><h2>{trip?'Edit trip':'New trip'}</h2>
     <label>Trip name<input required maxLength={120} value={name} onChange={e=>setName(e.target.value)}/></label>
     <div className="account-columns"><label>Start date<input type="date" required value={start} onChange={e=>{setStart(e.target.value);if(end<e.target.value)setEnd(e.target.value)}}/></label>
     <label>End date<input type="date" required min={start} value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
@@ -84,15 +75,16 @@ function TripSummary({trip,household,categories,members}:EntryProps & {trip:Trip
 export function Trips(props:EntryProps){
   const [params,setParams]=useSearchParams()
   const id=params.get('id'), trips=useTrips(props.household.id)
-  const [editing,setEditing]=useState(false)
+  const editing=params.get('edit')==='1'
+  const setEditing=(value:boolean)=>setParams({...(id ? {id} : {}),...(value ? {edit:'1'} : {})})
   const trip=trips.data?.find(t=>t.id===id)
-  const select=(id?:string)=>{setEditing(false);setParams(id?{id}:{})}
+  const select=(id?:string)=>setParams(id?{id}:{})
   if(trips.isPending)return <p>Loading trips…</p>
   if(trips.error)return <p role="alert">{reason(trips.error)}</p>
-  return <section className="trip-page"><Link to={id?'/trips':'/'} onClick={()=>setEditing(false)}>{id?'All trips':'Overview'}</Link>
+  return <section className="trip-page">{(id || editing) && <Link to="/trips">‹ All trips</Link>}
     <div className="section-head"><h1>{trip?.name || 'Trips'}</h1>{!editing&&<button onClick={()=>setEditing(true)}>{trip?'Edit trip':'New trip'}</button>}</div>
     {editing?<TripEditor key={trip?.id || 'new'} trip={trip} householdId={props.household.id} day={today(props.household.timezone)} onClose={()=>setEditing(false)} onSaved={select}/>
     :trip?<><small>{shortDate(trip.start_date)} – {shortDate(trip.end_date)}{trip.archived?' · Archived':''}</small><TripSummary {...props} trip={trip}/></>
-    :<section className="card">{!trips.data.length&&<p>Create a trip to track group expenses separately from your household budget.</p>}
-    {trips.data.map(t=><Link className="trip-row" key={t.id} to={'/trips?id='+t.id}><span><strong>{t.name}</strong><small>{shortDate(t.start_date)} – {shortDate(t.end_date)}{t.archived?' · Archived':''}</small></span>›</Link>)}</section>}</section>
+    :<section className="card trip-list">{!trips.data.length&&<p>Create a trip to track group expenses separately from your household budget.</p>}
+    {trips.data.map(t=><Link className="trip-row" key={t.id} to={'/trips?id='+t.id}><span><strong>{t.name}</strong><small>{shortDate(t.start_date)} – {shortDate(t.end_date)}{t.archived?' · Archived':''}</small></span><span className="trip-list-budget">{t.budget!==null && "Budget "+formatMoney(t.budget)} <span aria-hidden="true">›</span></span></Link>)}</section>}</section>
 }

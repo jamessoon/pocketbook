@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client'
 import {BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate, Navigate} from 'react-router-dom'
 import {QueryClient,QueryClientProvider,useQuery} from '@tanstack/react-query'
 import type {Session} from '@supabase/supabase-js'
-import {IconHome,IconListDetails,IconSettings,IconPlus,IconWallet} from '@tabler/icons-react'
+import {IconHome,IconListDetails,IconSettings,IconLuggage,IconPlus,IconWallet} from '@tabler/icons-react'
 import {configured,supabase} from './client'
 import {Auth,Settings} from './Account'
 import {QuickAdd,ExpenseList,Confirm,ExpenseDeletionProvider} from './Entries'
@@ -59,7 +59,7 @@ function App() {
   const data=householdQuery.data
   const month=selectedMonth || today(data.household.timezone).slice(0,7)+'-01'
   const props={...data,month}
-  const nav=[{to:'/',name:'Overview',Icon:IconHome},{to:'/expenses',name:'Expenses',Icon:IconListDetails},{to:'/settings',name:'Settings',Icon:IconSettings}]
+  const nav=[{to:'/',name:'Overview',Icon:IconHome},{to:'/expenses',name:'Expenses',Icon:IconListDetails},{to:'/trips',name:'Trips',Icon:IconLuggage},{to:'/settings',name:'Settings',Icon:IconSettings}]
   return <ExpenseDeletionProvider key={user+data.household.id}><div className="layout"><aside className="sidebar"><Brand/><nav>{nav.map(({to,name,Icon})=><NavLink key={to} to={to} end><Icon size={19}/>{name}</NavLink>)}</nav><div className="household-name"><IconHome size={20}/><span>{data.household.name}</span></div></aside>
     {location.pathname!=='/add' && <header className="phone-header"><nav aria-label="Main navigation">{nav.map(({to,name})=><NavLink to={to} end key={to}>{name}</NavLink>)}</nav></header>}
     <main className="content"><Routes>

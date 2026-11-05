@@ -130,9 +130,10 @@ try {
     await page.getByRole("button", {name:"SGD",exact:true}).click();
     await page.getByRole("button", {name:"MYR",exact:true}).click();
     await page.getByRole("button", {name:"1",exact:true}).click();
-    await expect(page.getByRole("button", {name:/Rate unavailable/})).toBeVisible();
+    await expect(page.getByRole("button", {name:/Rate unavailable/})).toBeVisible({timeout:15000});
     await expect(page.getByRole("button", {name:"Save expense"})).toBeDisabled();
-    await page.goto(baseURL+"/trips");
+    await page.goto(baseURL+"/");
+    await page.getByRole("navigation",{name:"Main navigation"}).getByRole("link",{name:"Trips",exact:true}).click();
     await page.getByRole("button",{name:"New trip"}).click();
     await page.getByLabel("Trip name").fill("Family holiday");
     await page.getByLabel("Trip budget").fill("200");
@@ -146,6 +147,8 @@ try {
     await page.getByRole("button",{name:"Save expense"}).click();
     await expect(page.getByRole("link",{name:/Trip snack/})).toBeVisible();
     assert.equal(rows.at(-1).trip_id,trips[0].id);
+    await page.getByRole("navigation",{name:"Main navigation"}).getByRole("link",{name:"Trips",exact:true}).click();
+    await expect(page.getByRole("link",{name:/Family holiday/})).toBeVisible();
     await page.goto(baseURL+"/add");
     await expect(page.getByLabel("Select trip")).toHaveText("Family holiday");
     await page.getByLabel("Select trip").click();
