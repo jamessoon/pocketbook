@@ -32,6 +32,7 @@ interface Expense {
   trip_id: string | null;
   is_fixed: boolean;
   recurring_item_id: string | null;
+  occurrence_on?:string|null;
   recurring_items?: {interval_months:number} | null;
 }
 
@@ -61,16 +62,19 @@ function Sheet({ title, close, children }: { title: string; close: () => void; c
   </dialog>;
 }
 
-type ExpenseTiming = {date:string; end:string|null};
+const quickFrequencies = {weekly:0,monthly:1,yearly:12} as const;
+type Frequency = keyof typeof quickFrequencies;
+type ExpenseTiming = {date:string; end:string|null;frequency:Frequency};
 
 function DateChoice({timing,day,allowRecurring,apply}: {
   timing:ExpenseTiming; day:string; allowRecurring:boolean; apply:(value:ExpenseTiming)=>void
 }) {
   const [repeat,setRepeat]=useState(timing.end!==null);
+  const [frequency,setFrequency]=useState(timing.frequency);
   const [from,setFrom]=useState(timing.date || day);
   const [to,setTo]=useState(timing.end || '');
   return <form className="date-choice" onSubmit={event=>{
-    event.preventDefault(); apply({date:from,end:repeat ? to : null});
+    event.preventDefault(); apply({date:from,end:repeat ? to : null,frequency});
   }}>
     {allowRecurring && <div className="date-modes">
       <button type="button" aria-pressed={!repeat} onClick={()=>setRepeat(false)}>One time</button>
@@ -78,7 +82,9 @@ function DateChoice({timing,day,allowRecurring,apply}: {
     </div>}
     <label>{repeat?'From':'Date'}<input type="date" required value={from} onChange={e=>setFrom(e.target.value)}/></label>
     {repeat && <><label>To<input type="date" required min={from} value={to} onChange={e=>setTo(e.target.value)}/></label>
-      <small>Repeats monthly as a household bill, including both dates when due.</small></>}
+      <div className="date-frequencies" role="group" aria-label="Repeat frequency">
+        {(Object.keys(quickFrequencies) as Frequency[]).map(value=><button type="button" key={value} aria-pressed={value===frequency} onClick={()=>setFrequency(value)}>{value[0].toUpperCase()+value.slice(1)}</button>)}
+      </div></>}
     <button type="submit" className="ee-action">Done</button>
   </form>;
 }
@@ -110,7 +116,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
   const [amount, setAmount] = useState(() => keypadInput(Number(original?.original_amount || 0), original?.original_currency || "SGD"));
   const [currency, setCurrency] = useState(original?.original_currency || "SGD");
   const [description, setDescription] = useState(original?.description || "");
-  const [timing,setTiming] = useState<ExpenseTiming>({date:original?.spent_on || day,end:null});
+  const [timing,setTiming] = useState<ExpenseTiming>({date:original?.spent_on || day,end:null,frequency:"monthly"});
   const {date,end} = timing;
   const repeat = end !== null;
   const trips = useTrips(household.id);
@@ -162,7 +168,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
         if(original || foreign || tripId || end < date) throw new Error("Choose a valid recurring SGD date range.");
         scheduleRequest.current ??= crypto.randomUUID();
         const fields={household_id:household.id,category_id:categoryId,name:(description.trim() || picked!.name).slice(0,120),
-          amount:sgdAmount,amount_type:"fixed",interval_months:1,start_month:date.slice(0,7)+"-01",
+          amount:sgdAmount,amount_type:"fixed",interval_months:quickFrequencies[timing.frequency],start_month:date.slice(0,7)+"-01",
           due_day:Number(date.slice(-2)),ends_on:end};
         const result=await supabase.from("recurring_items").insert({...fields,id:scheduleRequest.current});
         if(result.error){
@@ -220,7 +226,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
         {!!suggestions.data?.length && <div className="ee-suggestions" aria-label="Suggested descriptions">{suggestions.data.slice(0, 3).map(value =>
           <button key={value} title={value} onClick={() => setDescription(value)}>{value}</button>)}</div>}
       </div>
-      <div className="ee-details"><button onClick={() => openSheet("date")}><IconCalendar size={16}/>{repeat ? "Monthly" : date === day ? "Today" : dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</button>
+      <div className="ee-details"><button onClick={() => openSheet("date")}><IconCalendar size={16}/>{repeat ? timing.frequency[0].toUpperCase()+timing.frequency.slice(1) : date === day ? "Today" : dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</button>
         {!repeat && !original?.is_fixed && <button aria-label="Select trip" onClick={()=>openSheet("trip")}>{pickedTrip?.name || "No trip"}</button>}
         {pickedTrip && <small>Trip spending is outside the monthly budget.</small>}
       </div>
@@ -287,6 +293,7 @@ type Scope = "one" | "future" | "including";
 type PendingDeletion = Expense & {scope:Scope};
 function frequency(expense:Expense) {
   const interval=expense.recurring_items?.interval_months;
+  if(interval===0)return "Every week";
   if(interval===1)return "Every month";
   if(interval===12)return "Every year";
   return interval ? "Every "+interval+" months" : "Recurring";
@@ -305,7 +312,8 @@ function pendingRemoval(row:Expense,pending:PendingDeletion|null){
   if(!pending)return false;
   if(pending.scope==="one")return row.id===pending.id;
   if(row.recurring_item_id!==pending.recurring_item_id)return false;
-  return pending.scope==="future" ? row.spent_on>pending.spent_on : row.spent_on>=pending.spent_on;
+  const date=row.occurrence_on || row.spent_on, cutoff=pending.occurrence_on || pending.spent_on;
+  return pending.scope==="future" ? date>cutoff : date>=cutoff;
 }
 
 const DeletionContext = createContext<{

@@ -165,17 +165,25 @@ try {
     await expect(page.getByLabel("Select trip")).toHaveText("No trip");
     await page.getByRole("button",{name:"Food & drink",exact:true}).click();
     await page.getByRole("button",{name:"5",exact:true}).click();
-    await page.getByRole("button",{name:"Today",exact:true}).click();
-    await page.getByRole("button",{name:"Recurring",exact:true}).click();
-    await page.getByLabel("From",{exact:true}).fill("2027-01-31");
-    await page.getByLabel("To",{exact:true}).fill("2027-02-28");
-    await page.getByRole("button",{name:"Done",exact:true}).click();
-    await page.getByRole("button",{name:"Save recurring expense"}).click();
-    await page.getByRole("heading",{name:"Recurring costs"}).waitFor();
-    assert.equal(schedules.length,1);
-    assert.equal(schedules[0].ends_on,"2027-02-28");
-    assert.equal(schedules[0].due_day,31);
-    assert.equal(schedules[0].amount,0.05);
+    for(const [label, interval] of [["Monthly",1],["Weekly",0],["Yearly",12]]) {
+      if(schedules.length){
+        await page.goto(baseURL+"/add?category="+categories[2].id);
+        await page.getByRole("button",{name:"5",exact:true}).click();
+      }
+      await page.getByRole("button",{name:"Today",exact:true}).click();
+      await page.getByRole("button",{name:"Recurring",exact:true}).click();
+      await page.getByRole("button",{name:label,exact:true}).click();
+      await page.getByLabel("From",{exact:true}).fill("2027-01-31");
+      await page.getByLabel("To",{exact:true}).fill("2027-02-28");
+      await page.getByRole("button",{name:"Done",exact:true}).click();
+      await expect(page.getByRole("button",{name:label,exact:true})).toBeVisible();
+      await page.getByRole("button",{name:"Save recurring expense"}).click();
+      await page.getByRole("heading",{name:"Recurring costs"}).waitFor();
+      assert.equal(schedules.at(-1).interval_months,interval);
+      assert.equal(schedules.at(-1).ends_on,"2027-02-28");
+      assert.equal(schedules.at(-1).due_day,31);
+      assert.equal(schedules.at(-1).amount,0.05);
+    }
     await page.goto(baseURL+"/add");
     await page.getByRole("button",{name:"Today",exact:true}).click();
     await page.getByLabel("Date",{exact:true}).fill("2027-01-15");

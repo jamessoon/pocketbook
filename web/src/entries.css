@@ -85,3 +85,5 @@
 .date-choice{gap:14px}
 .date-modes{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .date-modes button[aria-pressed="true"]{background:var(--tint);color:var(--accent);border-color:var(--accent)}
+
+.date-frequencies{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.date-frequencies button[aria-pressed="true"]{background:var(--tint);color:var(--accent);border-color:var(--accent)}

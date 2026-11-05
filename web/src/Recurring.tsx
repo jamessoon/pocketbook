@@ -9,9 +9,9 @@ import type {Household,Category} from './types'
 
 type Bill = {
   id:string; name:string;category_id:string;amount:number;amount_type:'fixed'|'variable'
-  interval_months:number;due_day:number;start_month:string;ends_on:string|null;stop_from_month:string|null;active:boolean;last_posted_month:string|null
+  interval_months:number;due_day:number;start_month:string;ends_on:string|null;stop_from_month:string|null;stop_from_date:string|null;active:boolean;last_posted_month:string|null
 }
-const periods:Record<number,string>={1:'Monthly',3:'Every 3 months',6:'Every 6 months',12:'Yearly'}
+const periods:Record<number,string>={0:'Weekly',1:'Monthly',3:'Every 3 months',6:'Every 6 months',12:'Yearly'}
 const message=(error:unknown)=>error && typeof error==='object' && 'message' in error ? String(error.message) : 'Please try again.'
 
 function BillForm({bill,categories,household,close}:{bill?:Bill;categories:Category[];household:Household;close:()=>void}){
@@ -20,7 +20,7 @@ function BillForm({bill,categories,household,close}:{bill?:Bill;categories:Categ
   const [category,setCategory]=useState(bill?.category_id || '')
   const [amount,setAmount]=useState(String(bill?.amount ?? ''))
   const [type,setType]=useState<Bill['amount_type']>(bill?.amount_type || 'fixed')
-  const [interval,setIntervalMonths]=useState(bill?.interval_months || 1)
+  const [interval,setIntervalMonths]=useState(bill?.interval_months ?? 1)
   const [due,setDue]=useState(String(bill?.due_day ?? Number(day.slice(-2))))
   const [start,setStart]=useState((bill?.start_month || day).slice(0,7))
   const [end,setEnd]=useState(bill?.ends_on || '')
@@ -44,7 +44,7 @@ function BillForm({bill,categories,household,close}:{bill?:Bill;categories:Categ
     <label>{type==='fixed'?'Amount':'Estimate'} (SGD)<input type="number" required min="0.01" step=".01" value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>
     <label>Frequency<select aria-label="Frequency" value={interval} onChange={e=>setIntervalMonths(Number(e.target.value))}>{Object.entries(periods).map(([key,value])=><option key={key} value={key}>{value}</option>)}</select></label>
     <div className="account-columns"><label>Start month<input required type="month" value={start} onChange={e=>setStart(e.target.value)}/></label>
-      <label>Day due<input type="number" required min={1} max={31} step={1} value={due} onChange={e=>setDue(e.target.value)}/></label></div>
+      <label>{interval===0?"First day in start month":"Day due"}<input type="number" required min={1} max={31} step={1} value={due} onChange={e=>setDue(e.target.value)}/></label></div>
     <label>End date (optional)<input type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
     {type==='variable' && <small>When the bill posts, confirm the actual SGD amount in To confirm.</small>}
     {bill && <label><span><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)}/> Active</span></label>}
@@ -59,7 +59,7 @@ export function Recurring({household,categories}:{household:Household;categories
   const query=useQuery({queryKey:['recurring',household.id],queryFn:async()=>{
     const bills:Bill[]=[]
     for(let offset=0;;offset+=500){
-      const {data,error}=await supabase.from('recurring_items').select('id,name,category_id,amount,amount_type,interval_months,due_day,start_month,ends_on,stop_from_month,active,last_posted_month')
+      const {data,error}=await supabase.from('recurring_items').select('id,name,category_id,amount,amount_type,interval_months,due_day,start_month,ends_on,stop_from_month,stop_from_date,active,last_posted_month')
         .eq('household_id',household.id).order('active',{ascending:false}).order('name').order('id').range(offset,offset+499)
       if(error)throw error
       bills.push(...data)
@@ -75,7 +75,7 @@ export function Recurring({household,categories}:{household:Household;categories
     <section className="card trip-list">{!query.data.length&&<p>Add a bill to reserve it in your monthly budget.</p>}
       {query.data.map(item=>{const c=categories.find(category=>category.id===item.category_id)
         return <Link key={item.id} className="trip-row" to={'/recurring?edit='+item.id}><span><strong>{item.name}</strong>
-          <small>{periods[item.interval_months]} · Day {item.due_day} · {!item.active?'Paused':item.ends_on && item.ends_on<today(household.timezone)?'Ended':'Active'}{item.stop_from_month ? ' · Stops before '+item.stop_from_month : item.ends_on ? ' · Through '+item.ends_on : ''}</small></span>
+          <small>{periods[item.interval_months]} · {item.interval_months===0?'From day':'Day'} {item.due_day} · {!item.active?'Paused':item.ends_on && item.ends_on<today(household.timezone)?'Ended':'Active'}{(item.stop_from_date || item.stop_from_month) ? ' · Stops before '+(item.stop_from_date || item.stop_from_month) : item.ends_on ? ' · Through '+item.ends_on : ''}</small></span>
           <span>{c&&<CategoryIcon name={c.icon} size={16}/>} {item.amount_type==='variable'?'~':''}{formatMoney(item.amount)}</span></Link>
       })}</section>}
   </section>
