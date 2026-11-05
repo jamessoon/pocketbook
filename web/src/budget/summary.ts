@@ -15,6 +15,7 @@ export interface RecurringCost {
   interval: number;
   day: number;
   active?: boolean;
+  deleted?: boolean;
   end?: string;
   stopFromMonth?: string;
   skippedMonths?: string[];
@@ -50,6 +51,9 @@ export function calculateBudget(input: BudgetInput) {
 
   const fixedItems = input.recurring.flatMap(item => {
     const elapsed = monthIndex(first) - monthIndex(item.start);
+    if(item.deleted)return entries.filter(e=>e.fixed && e.recurringId===item.id).map(e=>({
+      id:item.id,due_on:e.occurrenceOn || e.date,amount:e.amount,posted:true,confirmed:e.confirmed!==false,
+    }));
     if(item.active===false || elapsed<0)return [];
     const weekly=item.interval===0;
     let dueDays:number[];

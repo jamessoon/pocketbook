@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('removes a household bill while preserving posted expenses and historical budget totals',async()=>{
+    await database.exec(readFileSync(new URL('./delete_recurring_bill.sql',import.meta.url),'utf8'));
+  });
   it('posts weekly and yearly and applies weekly deletion to exact occurrences',async()=>{
     await database.exec(readFileSync(new URL('./weekly_recurrence.sql',import.meta.url),'utf8'));
   });
