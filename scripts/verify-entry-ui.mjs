@@ -27,6 +27,7 @@ try {
     const trips = [];
     const schedules = [];
     const recurringDeletes=[];
+    const scheduled=[];
     const queries = [];
     let allowRate = true;
     await page.addInitScript(({ session, theme }) => {
@@ -57,7 +58,7 @@ try {
       if (path.endsWith("/category_usage")) return json(categories.map(c => ({ category_id: c.id, uses: 0 })));
       if (path.endsWith("/category_suggestions")) return json(["Lunch set","Coffee with family","Dinner at home"].map(description => ({ description })));
       if (path.endsWith("/fx-rate")) return allowRate ? json({ rate: 0.3, currency: "MYR", date: today }) : json({ error: "unavailable" }, 503);
-      if (path.endsWith("/month_summary")) return json({ monthly_budget:1200, remaining:1184, fixed_items:[], fixed_costs:0, day_to_day_spent:16, daily_budget:30, left_today:14 });
+      if (path.endsWith("/month_summary")) return json({ monthly_budget:1200, remaining:1184, fixed_items:scheduled, fixed_costs:0, day_to_day_spent:16, daily_budget:30, left_today:14 });
       if (path.endsWith("/expenses")) {
         const id = params.get("id")?.slice(3);
         const matches = rows.filter(e => (!params.get("trip_id") || (params.get("trip_id")==="is.null" ? !e.trip_id : e.trip_id===params.get("trip_id").slice(3))) && (!id || e.id === id) && (!params.has("category_id") || e.category_id === params.get("category_id").slice(3)) && (!params.has("sgd_confirmed") || e.sgd_confirmed === (params.get("sgd_confirmed") === "eq.true")));
@@ -190,10 +191,17 @@ try {
     await page.getByRole("button",{name:"Done",exact:true}).click();
     await expect(page.getByRole("button",{name:"Save expense"})).toBeVisible();
     const bill={...expense("31000000-0000-4000-8000-000000000001",categories[0],"Annual membership"),
-      is_fixed:true,recurring_item_id:"series1",recurring_items:{interval_months:12}};
+      is_fixed:true,recurring_item_id:"series1",recurring_items:{interval_months:12,ends_on:"2027-12-31"}};
     rows.push(bill);
+    schedules.push({id:"series1",category_id:categories[0].id,name:"Annual membership",interval_months:12,ends_on:"2027-12-31"});
+    scheduled.push({id:"series1",name:"Annual membership",due_on:today,posted:true,amount:8});
+    schedules.push({id:"weekly1",category_id:categories[1].id,name:"Weekly lesson",interval_months:0,ends_on:null});
+    scheduled.push({id:"weekly1",name:"Weekly lesson",due_on:today,posted:false,amount:12});
     await page.goto(baseURL+"/expenses");
-    await page.getByRole("button",{name:/Annual membership.*Every year/}).click();
+    await expect(page.locator(".ee-due-row")).toHaveCount(1);
+    await expect(page.locator(".ee-due-row")).toContainText("Weekly lesson");
+    await expect(page.locator(".ee-due-row")).toContainText("Every week · No end date");
+    await page.getByRole("button",{name:/Annual membership.*Every year.*Until.*2027/}).click();
     await page.getByRole("button",{name:"Delete",exact:true}).click();
     const dialog=page.getByRole("dialog");
     await expect(dialog.getByRole("button",{name:"Only this entry"})).toBeVisible();

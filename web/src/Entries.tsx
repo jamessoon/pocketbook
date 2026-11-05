@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { IconArrowLeft, IconBackspace, IconCalendar, IconCheck, IconChevronRight, IconPlus, IconRepeat, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { supabase } from "./client";
 import { CategoryIcon } from "./icons";
+import { useRecurringBills,recurringDetails } from './recurring-data';
 import { useTrips,defaultTrip } from "./trip-data";
 import { today, shiftMonth } from "./dates";
 import type { Category, Household, Member } from "./types";
@@ -33,7 +34,7 @@ interface Expense {
   is_fixed: boolean;
   recurring_item_id: string | null;
   occurrence_on?:string|null;
-  recurring_items?: {interval_months:number} | null;
+  recurring_items?: {name?:string;interval_months:number;ends_on?:string|null;stop_from_month?:string|null;stop_from_date?:string|null} | null;
 }
 
 function errorMessage(error: unknown) {
@@ -90,7 +91,7 @@ function DateChoice({timing,day,allowRecurring,apply}: {
 }
 
 async function getExpense(household: string, id: string) {
-  const result = await supabase.from("expenses").select("*,recurring_items(interval_months)").eq("household_id", household).eq("id", id).single();
+  const result = await supabase.from("expenses").select("*,recurring_items(name,interval_months,ends_on,stop_from_month,stop_from_date)").eq("household_id", household).eq("id", id).single();
   if (result.error) throw result.error;
   return result.data as Expense;
 }
@@ -207,7 +208,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
     onSuccess: async () => {
       rememberCurrency(household.id, currency);
       await client.invalidateQueries();
-      navigate(repeat ? "/recurring" : tripId ? "/trips?id="+tripId : original ? "/expenses" : "/", { replace: true });
+      navigate(repeat ? "/settings#recurring" : tripId ? "/trips?id="+tripId : original ? "/expenses" : "/", { replace: true });
     },
   });
   function openSheet(next: typeof sheet) { setFilter(""); setSheet(next); }
@@ -215,7 +216,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
     <div className="ee-form">
       <header className="ee-heading"><button className="ee-icon-btn" aria-label="Close expense form" onClick={() => navigate(original ? "/expenses" : "/")}><IconX size={20}/></button>
         <h1>{original ? "Edit expense" : "Add expense"}</h1><span/></header>
-      {original?.recurring_item_id && <div className="ee-title"><span><IconRepeat size={16}/> {frequency(original)}</span>
+      {original?.recurring_item_id && <div className="ee-title"><span><IconRepeat size={16}/> {recurringDetails(original.recurring_items)}</span>
         <button disabled={!!deletion.pendingDeletion} onClick={()=>setAskDelete(true)}>Delete</button></div>}
       <div className="ee-amount"><output aria-label="Amount">{displayedAmount}</output><button className="ee-currency" disabled={repeat} onClick={() => openSheet("currency")}>{currency}<IconChevronRight size={14}/></button></div>
       <div className="ee-slots" aria-label="Categories">
@@ -268,7 +269,7 @@ function useExpenses(household: string, month: string, page: number, pending: bo
   return useQuery({
     queryKey: ["expenses", household, month, page, pending, category],
     queryFn: async () => {
-      let query = supabase.from("expenses").select("*,recurring_items(interval_months)", { count: "exact" }).eq("household_id", household);
+      let query = supabase.from("expenses").select("*,recurring_items(name,interval_months,ends_on,stop_from_month,stop_from_date)", { count: "exact" }).eq("household_id", household);
       if (pending) query = query.eq("sgd_confirmed", false);
       else query = query.gte("spent_on", month).lt("spent_on", shiftMonth(month, 1));
       if (category) query = query.eq("category_id", category);
@@ -291,13 +292,6 @@ function Pagination({ page, total, update }: { page: number; total: number; upda
 
 type Scope = "one" | "future" | "including";
 type PendingDeletion = Expense & {scope:Scope};
-function frequency(expense:Expense) {
-  const interval=expense.recurring_items?.interval_months;
-  if(interval===0)return "Every week";
-  if(interval===1)return "Every month";
-  if(interval===12)return "Every year";
-  return interval ? "Every "+interval+" months" : "Recurring";
-}
 function DeleteChoices({expense,close,choose}:{expense:Expense;close:()=>void;choose:(scope:Scope)=>void}) {
   return <Sheet title={expense.recurring_item_id ? "Delete recurring expense?" : "Delete expense?"} close={close}>
     <p>{expense.description || "Expense"} · {formatMoney(expense.amount_sgd)} · {dateLabel(expense.spent_on,{day:"numeric",month:"short",year:"numeric"})}</p>
@@ -374,6 +368,24 @@ export function ExpenseList(props: EntryProps) {
   return <ListBody key={props.household.id + props.month + category} {...props} category={category}/>;
 }
 
+type DueItem={id:string;name:string;due_on:string;posted:boolean;amount:number}
+function UpcomingBills({household,month,category}:{household:string;month:string;category:string|null}){
+  const bills=useRecurringBills(household);
+  const summary=useQuery({queryKey:["expense-schedule",household,month],queryFn:async()=>{
+    const {data,error}=await supabase.rpc("month_summary",{p_month:month});
+    if(error)throw error;
+    return (data?.fixed_items || []) as DueItem[];
+  }});
+  if(bills.error || summary.error)return <Problem error={bills.error || summary.error}/>;
+  const byId=new Map(bills.data?.map(b=>[b.id,b]));
+  const due=(summary.data || []).filter(item=>!item.posted && byId.has(item.id) && (!category || byId.get(item.id)?.category_id===category));
+  if(!due.length)return null;
+  return <section className="ee-due"><h2>Scheduled this month</h2>{due.map(item=><div className="ee-due-row" key={item.id+item.due_on}>
+    <IconRepeat size={17} aria-hidden="true"/><span><strong>{item.name}</strong><small>{recurringDetails(byId.get(item.id))}</small>
+    <small>Due {dateLabel(item.due_on,{day:"numeric",month:"short"})}</small></span><b>{formatMoney(item.amount)}</b>
+  </div>)}</section>;
+}
+
 function ListBody({ household, month, members, categories, category }: EntryProps & { category: string | null }) {
   const [page, setPage] = useState(0);
   const [deleting, setDeleting] = useState<Expense | null>(null);
@@ -394,9 +406,10 @@ function ListBody({ household, month, members, categories, category }: EntryProp
   return <section className="ee-page">
     <div className="ee-title"><div><p>{dateLabel(month, { month: "long", year: "numeric" })}</p><h1 className={categoryName ? undefined : "phone-tab-title"}>{categoryName || "Expenses"}</h1></div>
       <button className="ee-action" onClick={() => navigate(category ? "/add?category=" + category : "/add")}><IconPlus size={17}/>Add expense</button></div>
+    <UpcomingBills household={household.id} month={month} category={category}/>
     {query.isPending && <p role="status">Loading expenses…</p>}
     {query.error && <Problem error={query.error}/>}
-    {!query.isPending && !query.error && !rows.length && <div className="ee-empty"><h2>No entries</h2><p>Your expenses for this month appear here.</p></div>}
+    {!query.isPending && !query.error && !rows.length && <div className="ee-empty"><h2>No posted entries</h2><p>Your expenses for this month appear here.</p></div>}
     {[...groups].map(([date, expenses]) => <section className="ee-day" key={date}><header>
       <h2>{dateLabel(date, { weekday: "short", day: "numeric", month: "short" })}</h2>
       <span>{formatMoney(expenses.reduce((total, e) => total + Number(e.amount_sgd), 0))} on this page</span></header>
@@ -405,8 +418,8 @@ function ListBody({ household, month, members, categories, category }: EntryProp
         const person = !e.created_by && e.is_fixed ? "Recurring bill" : e.created_by ? members.find(m => m.user_id === e.created_by)?.display_name || "Household member" : "Household widget";
         return <div className="ee-row" key={e.id}>
           <button className="ee-row-main" onClick={() => navigate("/add?edit=" + e.id)}><CategoryGlyph category={cat}/>
-            <span><strong>{e.description || cat?.name}</strong><small>{cat?.name} · {person}</small>
-              {(e.trip_id || e.is_fixed || !e.sgd_confirmed) && <span className="ee-badges">{e.trip_id && <i>Trip</i>}{e.is_fixed && <i><IconRepeat size={13} aria-hidden="true"/> {frequency(e)}</i>}{!e.sgd_confirmed && <i>To confirm</i>}</span>}
+            <span><strong>{e.description || e.recurring_items?.name || cat?.name}</strong><small>{cat?.name} · {person}</small>
+              {(e.trip_id || e.is_fixed || !e.sgd_confirmed) && <span className="ee-badges">{e.trip_id && <i>Trip</i>}{e.is_fixed && <i><IconRepeat size={13} aria-hidden="true"/> {recurringDetails(e.recurring_items)}</i>}{!e.sgd_confirmed && <i>To confirm</i>}</span>}
             </span><b>{formatMoney(e.amount_sgd)}</b></button>
           <button className="ee-icon-btn" aria-label={"Delete " + (e.description || cat?.name)} disabled={!!pendingDeletion} onClick={() => setDeleting(e)}><IconTrash size={17}/></button>
         </div>;
