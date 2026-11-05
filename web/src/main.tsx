@@ -6,7 +6,7 @@ import type {Session} from '@supabase/supabase-js'
 import {IconHome,IconListDetails,IconSettings,IconPlus,IconWallet} from '@tabler/icons-react'
 import {configured,supabase} from './client'
 import {Auth,Settings} from './Account'
-import {QuickAdd,ExpenseList,Confirm} from './Entries'
+import {QuickAdd,ExpenseList,Confirm,ExpenseDeletionProvider} from './Entries'
 import {Dashboard} from './Dashboard'
 import {today} from './dates'
 import type {Household,Category,Member} from './types'
@@ -59,14 +59,14 @@ function App() {
   const month=selectedMonth || today(data.household.timezone).slice(0,7)+'-01'
   const props={...data,month}
   const nav=[{to:'/',name:'Overview',Icon:IconHome},{to:'/expenses',name:'Expenses',Icon:IconListDetails},{to:'/settings',name:'Settings',Icon:IconSettings}]
-  return <div className="layout"><aside className="sidebar"><Brand/><nav>{nav.map(({to,name,Icon})=><NavLink key={to} to={to} end><Icon size={19}/>{name}</NavLink>)}</nav><div className="household-name"><IconHome size={20}/><span>{data.household.name}</span></div></aside>
+  return <ExpenseDeletionProvider key={user+data.household.id}><div className="layout"><aside className="sidebar"><Brand/><nav>{nav.map(({to,name,Icon})=><NavLink key={to} to={to} end><Icon size={19}/>{name}</NavLink>)}</nav><div className="household-name"><IconHome size={20}/><span>{data.household.name}</span></div></aside>
     {location.pathname!=='/add' && <header className="phone-header"><nav aria-label="Main navigation">{nav.map(({to,name})=><NavLink to={to} end key={to}>{name}</NavLink>)}</nav></header>}
     <main className="content"><Routes>
     <Route path="/" element={<Dashboard {...props} onMonth={setMonth}/>}/>
     <Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
     <Route path="/add" element={<QuickAdd {...props}/>}/><Route path="/settings" element={<Settings {...props}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/></Routes></main>
-    {location.pathname!=='/add' && <footer className="phone-action"><LinkToAdd category={location.pathname==='/expenses' ? new URLSearchParams(location.search).get('category') : null}/></footer>}</div>
+    {location.pathname!=='/add' && <footer className="phone-action"><LinkToAdd category={location.pathname==='/expenses' ? new URLSearchParams(location.search).get('category') : null}/></footer>}</div></ExpenseDeletionProvider>
 }
 function LinkToAdd({category}:{category:string|null}){
   return <NavLink className="primary" to={category ? '/add?category='+encodeURIComponent(category) : '/add'}><IconPlus size={19}/>Add expense</NavLink>

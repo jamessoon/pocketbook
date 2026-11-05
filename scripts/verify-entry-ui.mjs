@@ -109,10 +109,13 @@ try {
     await expect(page.getByText("Updated shopping", {exact:true})).toBeVisible();
     await page.getByRole("button", {name:"Delete Updated shopping"}).click();
     await page.getByRole("dialog").getByRole("button", {name:"Delete expense"}).click();
+    await page.getByRole("navigation",{name:"Main navigation"}).getByText("Overview").click();
     await page.getByRole("button", {name:"Undo"}).click();
+    await page.getByRole("navigation",{name:"Main navigation"}).getByText("Expenses").click();
     await expect(page.getByText("Updated shopping", {exact:true})).toBeVisible();
     await page.getByRole("button", {name:"Delete Updated shopping"}).click();
     await page.getByRole("dialog").getByRole("button", {name:"Delete expense"}).click();
+    await page.getByRole("navigation",{name:"Main navigation"}).getByText("Settings").click();
     await expect.poll(() => rows.some(e=>e.description==="Updated shopping"), {timeout:10000}).toBe(false);
     allowRate = false;
     await page.goto(baseURL + "/add?category=" + categories[0].id);

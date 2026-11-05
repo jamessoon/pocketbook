@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { IconArrowLeft, IconBackspace, IconCalendar, IconCheck, IconChevronRight, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
@@ -218,6 +218,53 @@ function Pagination({ page, total, update }: { page: number; total: number; upda
   </nav>;
 }
 
+const DeletionContext = createContext<{
+  pendingDeletion: Expense | null;
+  schedule: (expense: Expense) => void;
+} | null>(null);
+
+// The undo window belongs to the household session, not the current route.
+export function ExpenseDeletionProvider({children}: {children: ReactNode}) {
+  const [pendingDeletion, setPending] = useState<Expense | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const client = useQueryClient();
+  const inFlight = useRef(false);
+  useEffect(() => {
+    if (!pendingDeletion) return;
+    const timer = window.setTimeout(async () => {
+      inFlight.current = true;
+      setCommitting(true);
+      try {
+        const result = await supabase.from("expenses").delete()
+          .eq("household_id", pendingDeletion.household_id).eq("id", pendingDeletion.id)
+          .eq("updated_at", pendingDeletion.updated_at).select("id").maybeSingle();
+        if (result.error) throw result.error;
+        if (!result.data) throw new Error("This entry changed. Refresh and try again.");
+      } catch (failure) {
+        setError(failure);
+      } finally {
+        await client.invalidateQueries();
+        inFlight.current = false;
+        setCommitting(false);
+        setPending(null);
+      }
+    }, 6000);
+    return () => window.clearTimeout(timer);
+  }, [pendingDeletion, client]);
+  return <DeletionContext.Provider value={{pendingDeletion, schedule: expense => {
+    setError(null);
+    setPending(current => current ?? expense);
+  }}}>
+    {children}
+    {pendingDeletion && <div role="status" className="ee-toast">
+      {committing ? "Deleting expense�" : "Expense marked for deletion"}
+      <button disabled={committing} onClick={() => { if (!inFlight.current) setPending(null); }}>Undo</button>
+    </div>}
+    {!!error && <div className="ee-toast"><Problem error={error}/><button onClick={()=>setError(null)}>Dismiss</button></div>}
+  </DeletionContext.Provider>;
+}
+
 export function ExpenseList(props: EntryProps) {
   const [params] = useSearchParams();
   const category = params.get("category");
@@ -227,30 +274,12 @@ export function ExpenseList(props: EntryProps) {
 function ListBody({ household, month, members, categories, category }: EntryProps & { category: string | null }) {
   const [page, setPage] = useState(0);
   const [deleting, setDeleting] = useState<Expense | null>(null);
-  const [pendingDeletion, setPendingDeletion] = useState<Expense | null>(null);
-  const [committing, setCommitting] = useState(false);
-  const [deleteError, setDeleteError] = useState<unknown>(null);
+  const {pendingDeletion, schedule} = useContext(DeletionContext)!;
   const navigate = useNavigate();
-  const client = useQueryClient();
   const query = useExpenses(household.id, month, page, false, category);
   useEffect(() => {
     if (query.data && page > 0 && !query.data.rows.length) setPage(page - 1);
   }, [page, query.data]);
-  // Cancel an uncommitted deletion when leaving the screen. An expired deletion
-  // uses the original version so it cannot discard another member's recent edit.
-  useEffect(() => {
-    if (!pendingDeletion) return;
-    const timer = window.setTimeout(async () => {
-      setCommitting(true);
-      const result = await supabase.from("expenses").delete().eq("household_id", household.id)
-        .eq("id", pendingDeletion.id).eq("updated_at", pendingDeletion.updated_at).select("id").maybeSingle();
-      if (result.error || !result.data) setDeleteError(result.error || new Error("This entry changed. Refresh and try again."));
-      await client.invalidateQueries();
-      setPendingDeletion(null);
-      setCommitting(false);
-    }, 6000);
-    return () => window.clearTimeout(timer);
-  }, [pendingDeletion, household.id, client]);
   const rows = (query.data?.rows || []).filter(e => e.id !== pendingDeletion?.id);
   const groups = new Map<string, Expense[]>();
   for (const e of rows) {
@@ -264,7 +293,6 @@ function ListBody({ household, month, members, categories, category }: EntryProp
       <button className="ee-action" onClick={() => navigate(category ? "/add?category=" + category : "/add")}><IconPlus size={17}/>Add expense</button></div>
     {query.isPending && <p role="status">Loading expenses…</p>}
     {query.error && <Problem error={query.error}/>}
-    {deleteError ? <Problem error={deleteError}/> : null}
     {!query.isPending && !query.error && !rows.length && <div className="ee-empty"><h2>No entries</h2><p>Your expenses for this month appear here.</p></div>}
     {[...groups].map(([date, expenses]) => <section className="ee-day" key={date}><header>
       <h2>{dateLabel(date, { weekday: "short", day: "numeric", month: "short" })}</h2>
@@ -283,9 +311,9 @@ function ListBody({ household, month, members, categories, category }: EntryProp
     <Pagination page={page} total={query.data?.total || 0} update={setPage}/>
     {deleting && <Sheet title="Delete expense?" close={() => setDeleting(null)}>
       <p>{deleting.description || "Expense"} · {formatMoney(deleting.amount_sgd)}</p>
-      <button className="ee-remove" onClick={() => { setDeleteError(null); setPendingDeletion(deleting); setDeleting(null); }}>Delete expense</button>
+      <button className="ee-remove" onClick={() => { schedule(deleting); setDeleting(null); }}>Delete expense</button>
     </Sheet>}
-    {pendingDeletion && <div role="status" className="ee-toast">{committing ? "Deleting expense…" : "Expense marked for deletion"}<button disabled={committing} onClick={() => setPendingDeletion(null)}>Undo</button></div>}
+
   </section>;
 }
 
