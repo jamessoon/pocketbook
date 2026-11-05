@@ -10,6 +10,8 @@ Deno.serve(async req=>{
   const db=createClient(url,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
   const lease=crypto.randomUUID();
   let reportId:string|null=null;
+  let manualRequest:string|null=null;
+  let month:string|null=null;
   try{
     let household:string;
     const secret=req.headers.get('x-hhexpense-job');
@@ -26,8 +28,14 @@ Deno.serve(async req=>{
       const member=await userDb.from('members').select('household_id').eq('user_id',user.data.user.id).maybeSingle();
       if(member.error || !member.data)return reply(403,{error:'Join a household before running a report.'});
       household=member.data.household_id;
+      const body=await req.json().catch(()=>null);
+      if(!/^\d{4}-(0[1-9]|1[0-2])-01$/.test(body?.month || '') ||
+         !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body?.request_id || ''))
+        return reply(400,{error:'Choose a report month and press Send report.'});
+      manualRequest=body.request_id;
+      month=body.month;
     }
-    const claim=await db.rpc('claim_monthly_report',{p_household:household,p_lease:lease,p_job_secret:secret});
+    const claim=manualRequest ? await db.rpc('prepare_manual_report',{p_household:household,p_month:month,p_request:manualRequest}) : await db.rpc('claim_monthly_report',{p_household:household,p_lease:lease,p_job_secret:secret});
     if(claim.error)return reply(claim.error.code==='42501'?403:500,{error:'Could not claim report. Check the report migration and scheduler credential.'});
     const work=claim.data;
     if(work.status!=='claimed')return reply(200,{status:work.status==='sent'?'already_sent':work.status});
@@ -39,22 +47,33 @@ Deno.serve(async req=>{
     }
     const recipients=await db.from('report_recipients').select('email').eq('household_id',household);
     if(recipients.error)throw new Error('Could not read report recipients.');
-    if(!recipients.data.length)return reply(200,{status:'saved'});
+    const addresses=manualRequest ? (work.recipients as string[]).filter(email=>recipients.data.some(row=>row.email===email)) : recipients.data.map(row=>row.email);
+    async function finishManual(delivered:boolean){
+      const result=await db.rpc('finish_manual_report',{p_request:manualRequest,p_delivered:delivered});
+      if(result.error)throw new Error('Could not finish recording the send. Retry the same request.');
+    }
+    if(!addresses.length){
+      if(manualRequest)await finishManual(false);
+      return reply(200,{status:'saved'});
+    }
+    const table=manualRequest?'manual_report_deliveries':'report_deliveries';
+    const foreignKey=manualRequest?'request_id':'report_id';
+    const deliveryGroup=manualRequest || reportId;
     const from=env('REPORT_FROM_EMAIL'),resend=env('RESEND_API_KEY');
     if(!from || !resend)throw new Error('Report saved. Set RESEND_API_KEY and REPORT_FROM_EMAIL to send it.');
     const failures:string[]=[];
     let newlyAccepted=0, previouslyAccepted=0;
-    for(const {email} of recipients.data){
-      await ownedUpdate({lease_until:new Date(Date.now()+600000).toISOString()});
+    for(const email of addresses){
+      if(!manualRequest)await ownedUpdate({lease_until:new Date(Date.now()+600000).toISOString()});
       try {
         // Check the latest subscription and retain exactly the same payload and key across retries.
         const current=await db.from('report_recipients').select('email').eq('household_id',household).eq('email',email).maybeSingle();
         if(current.error)throw new Error('Could not check the email subscription.');
         if(!current.data)continue;
-        const saved=await db.from('report_deliveries').upsert({report_id:reportId,email,payload:emailPayload(stats,from,email)},
-          {onConflict:'report_id,email',ignoreDuplicates:true});
+        const saved=await db.from(table).upsert({[foreignKey]:deliveryGroup,email,payload:emailPayload(stats,from,email)},
+          {onConflict:foreignKey+',email',ignoreDuplicates:true});
         if(saved.error)throw new Error('Could not prepare email delivery.');
-        const lookup=await db.from('report_deliveries').select('id,payload,first_attempt,provider_id').eq('report_id',reportId).eq('email',email).single();
+        const lookup=await db.from(table).select('id,payload,first_attempt,provider_id').eq(foreignKey,deliveryGroup).eq('email',email).single();
         if(lookup.error)throw new Error('Could not read delivery status.');
         const delivery=lookup.data;
         if(!delivery.provider_id && work.ai_text && delivery.payload.text.endsWith('\n\n'+work.ai_text)){
@@ -62,19 +81,20 @@ Deno.serve(async req=>{
         }
         if(delivery.provider_id){previouslyAccepted++;continue;}
         await deliverEmail(delivery,resend,async providerId=>{
-          const mark=await db.from('report_deliveries').update({provider_id:providerId}).eq('id',delivery.id);
+          const mark=await db.from(table).update({provider_id:providerId}).eq('id',delivery.id);
           if(mark.error)throw new Error('Could not record the accepted delivery. Retry from Reports.');
         });
         newlyAccepted++;
       }catch(error){failures.push(error instanceof Error?error.message:'Email delivery failed.');}
     }
     if(failures.length)throw new Error(failures.length+' delivery attempt(s) pending. '+failures[0]);
+    if(manualRequest)await finishManual(newlyAccepted+previouslyAccepted>0);
     if(!newlyAccepted && !previouslyAccepted)return reply(200,{status:'saved'});
-    await ownedUpdate({sent_at:new Date().toISOString()});
+    if(!manualRequest)await ownedUpdate({sent_at:new Date().toISOString()});
     return reply(200,{status:newlyAccepted?'accepted':'already_sent',newlyAccepted});
   }catch(error){
     return reply(502,{error:error instanceof Error?error.message:'Report failed. Check the function logs.'});
   }finally{
-    if(reportId)await db.from('reports').update({lease:null,lease_until:null}).eq('id',reportId).eq('lease',lease);
+    if(reportId && !manualRequest)await db.from('reports').update({lease:null,lease_until:null}).eq('id',reportId).eq('lease',lease);
   }
 });

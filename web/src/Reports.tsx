@@ -1,6 +1,7 @@
 import {useEffect,useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {Link,useLocation} from 'react-router-dom'
+import {today,shiftMonth} from './dates'
 import {supabase} from './client'
 import {cash,monthName,highlights,spendingChange,type ReportStats} from '../../supabase/functions/monthly-report/report'
 import type {Household} from './types'
@@ -32,7 +33,7 @@ export function ReportSettings({household}:{household:Household}){
     {(save.error || query.error) && <p role="alert">{problem(save.error || query.error)}</p>}
   </section>
 }
-interface Report {id:string;month:string;stats:ReportStats;sent_at:string|null}
+interface Report {id:string;month:string;stats:ReportStats;sent_at:string|null;last_manual_sent_at?:string|null}
 function ReportDetail({report}:{report:Report}){
   const s=report.stats
   const {change,highest,top}=highlights(s)
@@ -52,36 +53,40 @@ export function Reports({household}:{household:Household}){
   const [selected,setSelected]=useState(''),[notice,setNotice]=useState('')
   const key=['reports',household.id]
   const query=useQuery({queryKey:key,queryFn:async()=>{
-    const {data,error}=await supabase.from('reports').select('id,month,stats,sent_at').eq('household_id',household.id).order('month',{ascending:false})
+    const {data,error}=await supabase.from('reports').select('id,month,stats,sent_at,last_manual_sent_at').eq('household_id',household.id).order('month',{ascending:false})
     if(error)throw error
     return data as Report[]
   }})
-  const send=useMutation({mutationFn:async()=>{
+  const current=today(household.timezone).slice(0,7)+'-01'
+  const month=selected || query.data?.[0]?.month || shiftMonth(current,-1)
+  const report=query.data?.find(r=>r.month===month)
+  const lastSent=[report?.sent_at,report?.last_manual_sent_at].filter((v):v is string=>!!v).sort().at(-1)
+  const send=useMutation({mutationFn:async(input:{month:string;request_id:string})=>{
     setNotice('')
-    const result=await supabase.functions.invoke('monthly-report',{body:{}})
+    const result=await supabase.functions.invoke('monthly-report',{body:input})
     if(result.error){
       const detail=await result.error.context?.json?.().catch(()=>null)
       throw new Error(detail?.error || result.error.message)
     }
     return result.data as {status:string;newlyAccepted?:number}
   },onSuccess:({status,newlyAccepted})=>{
-    setSelected('')
+
     const messages:Record<string,string>={
       busy:'This report is being prepared. Refresh shortly.',
-      already_sent:'This month’s report was already emailed. No new email was sent.',
+      already_sent:'This send request has already been processed.',
       accepted:'Resend accepted '+newlyAccepted+' new email'+(newlyAccepted===1?'':'s')+' for delivery.',
-      sent:'This month’s report is marked as emailed. Repeat requests do not send another copy.',
+      sent:'The server is using the old report function. Deploy the updated monthly-report function to send the selected month.',
       saved:'Report saved. Add recipients in Settings to send it.',
     }
     setNotice(messages[status] || 'Check the saved report for its latest status.')
   },onSettled:()=>client.invalidateQueries({queryKey:key})})
-  const report=query.data?.find(r=>r.month===selected) || query.data?.[0]
   return <section className="history-page"><Link to="/">‹ Overview</Link><div className="section-head"><h1>Reports</h1><Link to="/settings#report-recipients">Recipients</Link></div>
-    <div><button className="primary" disabled={send.isPending} onClick={()=>send.mutate()}>{send.isPending?'Preparing report…':"Send last month’s report now"}</button></div>
+    <div className="trip-actions"><label>Report month <input type="month" aria-label="Report month" min="1900-01" max={current.slice(0,7)} value={month.slice(0,7)}
+      disabled={send.isPending} onChange={e=>{if(e.target.validity.valid && e.target.value){setSelected(e.target.value+'-01');setNotice('');send.reset()}}}/></label>
+      <button className="primary" disabled={send.isPending || query.isPending} onClick={()=>send.mutate({month,request_id:crypto.randomUUID()})}>{send.isPending?'Sending…':'Send report'}</button></div>
     {notice&&<p role="status">{notice}</p>}{(query.error || send.error)&&<p role="alert">{problem(send.error || query.error)}</p>}
-    {query.isPending?<p>Loading reports…</p>:report?<><div className="section-head"><label>Report month <select aria-label="Report month" value={report.month} onChange={e=>setSelected(e.target.value)}>
-      {query.data?.map(r=><option key={r.id} value={r.month}>{monthName(r.month)}</option>)}</select></label>
-      <small>{report.sent_at?'Email recorded '+new Intl.DateTimeFormat('en-SG',{timeZone:household.timezone,day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(report.sent_at)):'Saved'}</small></div><ReportDetail report={report}/></>:
-      !query.error&&<section className="card"><h2>No reports yet</h2><p>Prepare last month’s report above, or wait for the monthly schedule.</p></section>}
+    {query.isPending?<p>Loading reports…</p>:report?<><div className="section-head"><h2>{monthName(report.month)}</h2>
+      <small>{lastSent?'Last emailed '+new Intl.DateTimeFormat('en-SG',{timeZone:household.timezone,day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(lastSent)):'Saved'}</small></div><ReportDetail report={report}/></>:
+      !query.error&&<section className="card"><h2>No saved report for {monthName(month)}</h2><p>Send report prepares this month’s figures and emails your listed recipients.</p></section>}
   </section>
 }

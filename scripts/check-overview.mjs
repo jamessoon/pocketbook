@@ -14,6 +14,7 @@ try{
    let housePosted=false
    let bill=null
    let report=null
+   const sendIds=new Set()
    let recipients=[]
    page.on('pageerror',e=>errors.push(e.message))
    await page.addInitScript(()=>{
@@ -31,7 +32,10 @@ try{
       return route.fulfill({json:method==='GET'?recipients:null})
     }
     if(table==='monthly-report'){
-      if(report)return route.fulfill({json:{status:'already_sent'}})
+      const input=route.request().postDataJSON()
+      assert.equal(input.month,'2025-05-01')
+      assert.ok(input.request_id && !sendIds.has(input.request_id))
+      sendIds.add(input.request_id)
       report={id:'rep1',month:'2025-05-01',sent_at:'2025-06-01',stats:{
         total:100,budget:2000,fixed:80,daily:20,previous:90,days_over:1,unconfirmed:0,categories:[{id:'house',name:'House',amount:80,previous:60,prior_average:50}],trips:[],largest:[{description:'Roof repair',amount:80,spent_on:'2025-05-05',trip:false}],new_descriptions:[{description:'Roof repair',amount:80,entries:1}]}}
       return route.fulfill({json:{status:'accepted',newlyAccepted:1}})
@@ -121,12 +125,14 @@ try{
    await page.getByRole('button',{name:'Add recipient'}).click()
    await page.getByLabel('Remove test@example.test').waitFor()
    await page.getByRole('link',{name:'Reports',exact:true}).click()
-   await page.getByRole('heading',{name:'No reports yet'}).waitFor()
-   await page.getByRole('button',{name:'Send last month’s report now'}).click()
+   await page.getByLabel('Report month').fill('2025-05')
+   await page.getByRole('heading',{name:'No saved report for May 2025'}).waitFor()
+   await page.getByRole('button',{name:'Send report'}).click()
    await page.getByText('Budget remaining',{exact:true}).waitFor()
    await page.getByText('Resend accepted 1 new email for delivery.').waitFor()
-   await page.getByRole('button',{name:'Send last month’s report now'}).click()
-   await page.getByText('This month’s report was already emailed. No new email was sent.').waitFor()
+   await page.getByRole('button',{name:'Send report'}).click()
+   await page.waitForFunction(()=>document.querySelector('button.primary')?.textContent==='Send report')
+   assert.equal(sendIds.size,2)
    await page.getByText('Up $10.00 (11.1%) from $90.00 last month',{exact:true}).waitFor()
    await page.getByRole('heading',{name:'Highest expense',exact:true}).waitFor()
    await page.getByRole('heading',{name:'Highest-spending categories',exact:true}).waitFor()
