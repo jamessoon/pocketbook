@@ -41,15 +41,17 @@ async function snapshot(mode) {
   const path = files.joinPath(files.documentsDirectory(),"HHExpense-"+WIDGET_TOKEN.slice(-12)+"-"+mode+".json");
   try {
     const data = await rpc(mode==="summary"?"widget_summary":"widget_categories");
-    files.writeString(path,JSON.stringify(data));
-    return {data, stale:false};
+    const saved = {data, updated:Date.now()};
+    files.writeString(path,JSON.stringify(saved));
+    return {...saved, stale:false};
   } catch (error) {
     if (error.status===401 || error.status===403) {
       if(files.fileExists(path)) files.remove(path);
       throw error;
     }
     if (!files.fileExists(path)) throw error;
-    return {data:JSON.parse(files.readString(path)), stale:true};
+    const saved = JSON.parse(files.readString(path));
+    return saved.updated ? {...saved, stale:true} : {data:saved, updated:null, stale:true};
   }
 }
 function label(parent,text,size,color=ink,bold=false) {
@@ -71,7 +73,7 @@ function bar(parent,spent,budget) {
   parent.addImage(drawing.getImage()).imageSize = new Size(112,5);
 }
 function summary(w,data) {
-  w.url = APP_URL;
+  w.url = runLink("open=summary");
   const month = new Date(data.month+"T12:00:00Z").toLocaleDateString("en-SG",{month:"short",year:"numeric"});
   label(w,month,12,muted,true);
   label(w,money(data.spent),22,ink,true);
@@ -90,14 +92,17 @@ function categories(w,data) {
   if(config.widgetFamily==="small"){label(w,"Use a medium or large widget for quick add.",13).lineLimit=3;return;}
   label(w,"Add expense",14,accent,true);
   if(!data.length){label(w,"Add a category in Settings.",12);return;}
-  for(let start=0;start<data.length;start+=4){
+  const columns = 5;
+  const capacity = config.widgetFamily==="large" ? 30 : 15;
+  const visible = data.length<=capacity ? data : [...data.slice(0,capacity-1),{name:"All categories",icon:"dots"}];
+  for(let start=0;start<visible.length;start+=columns){
     w.addSpacer(4);
     const row=w.addStack();
-    for(const category of data.slice(start,start+4)){
+    for(const category of visible.slice(start,start+columns)){
       const cell=row.addStack(); cell.layoutVertically();
-      cell.url="scriptable:///run?scriptName="+encodeURIComponent(Script.name())+"&categoryId="+encodeURIComponent(category.id);
+      cell.url=runLink(category.id ? "categoryId="+encodeURIComponent(category.id) : "open=add");
       const symbol=SFSymbol.named(symbols[category.icon] || "circle") || SFSymbol.named("circle");
-      const icon=cell.addImage(symbol.image); icon.imageSize=new Size(18,18); icon.tintColor=accent;
+      const icon=cell.addImage(symbol.image); icon.imageSize=new Size(16,16); icon.tintColor=accent;
       label(cell,category.name,10); row.addSpacer();
     }
   }
@@ -106,51 +111,30 @@ async function render(mode) {
   const w = new ListWidget();
   w.setPadding(9,11,9,11);
   w.backgroundColor = Color.dynamic(new Color("#f4f6f2"),new Color("#15201b"));
-  w.refreshAfterDate = new Date(Date.now()+15*60*1000);
+  w.refreshAfterDate = new Date(Date.now()+5*60*1000);
   try {
     if(!["summary","add"].includes(mode)) throw new Error("Set Parameter to summary or add.");
-    const {data,stale}=await snapshot(mode);
+    const {data,stale,updated}=await snapshot(mode);
     if(mode==="summary") summary(w,data); else categories(w,data);
     if(stale) label(w,"Stale · last saved",10,muted);
+    else if(mode==="summary") label(w,"Updated "+new Date(updated).toLocaleTimeString("en-SG",{hour:"2-digit",minute:"2-digit"}),9,muted);
   } catch(error){ label(w,error.message,13).lineLimit=4; }
   return w;
 }
-function parseAmount(text) {
-  const value=text.trim();
-  if(!/^\d{1,12}$/.test(value) && !/^(?:\d{1,10})?\.\d{1,2}$/.test(value)) return null;
-  const amount=value.includes(".") ? Number(value) : Number(value)/100;
-  return amount>0 && amount<=9999999999.99 ? amount : null;
+function runLink(query) {
+  return "scriptable:///run?scriptName="+encodeURIComponent(Script.name())+"&"+query;
 }
-async function quickAdd(categoryId) {
-  const options=await rpc("widget_suggestions",{category_id:categoryId});
-  const prompt=new Alert(); prompt.title="Expense amount";
-  prompt.message="SGD · Type 1025 for S$10.25, or enter 10.25.";
-  prompt.addTextField("0.00","").setDecimalPadKeyboard();
-  prompt.addAction("Next"); prompt.addCancelAction("Cancel");
-  if(await prompt.presentAlert()<0) return;
-  const amount=parseAmount(prompt.textFieldValue(0));
-  if(amount===null) throw new Error("Enter a positive SGD amount.");
-  const choose=new Alert(); choose.title=money(amount);
-  options.forEach(s=>choose.addAction(s)); choose.addAction("Type a description"); choose.addAction("Save without description"); choose.addCancelAction("Cancel");
-  const selection=await choose.presentSheet();
-  if(selection<0) return;
-  let description=options[selection] || "";
-  if(selection===options.length){
-    const field=new Alert();field.title="Description";field.addTextField("Optional","");
-    field.addAction("Save");field.addCancelAction("Cancel");
-    if(await field.presentAlert()<0) return;
-    description=field.textFieldValue(0).trim();
-  }
-  try { await rpc("widget_add_expense",{category_id:categoryId,amount,description}); }
-  catch(error){ if(!error.status) throw new Error("Save could not be confirmed. Check Expenses before trying again."); throw error; }
-  const notice=new Notification();notice.title="Expense saved";notice.body=money(amount)+(description?" · "+description:"");
-  await notice.schedule();
-  // Refresh the saved summary now; iOS schedules the next Home Screen repaint.
-  await snapshot("summary").catch(()=>{});
-  Script.setWidget(await render("add"));
+async function openExpenseApp(categoryId, open) {
+  const route = categoryId ? "add?category="+encodeURIComponent(categoryId) : open==="add" ? "add" : "";
+  const view=new WebView();
+  await view.loadURL(APP_URL.replace(/\/$/,"")+"/"+route);
+  await view.present(true);
+  // Get fresh server totals after the user dismisses the web app.
+  Script.setWidget(await render("summary"));
 }
 try {
-  if(args.queryParameters.categoryId) await quickAdd(args.queryParameters.categoryId);
+  const {categoryId,open}=args.queryParameters;
+  if(categoryId || open==="add" || open==="summary") await openExpenseApp(categoryId,open);
   else {
     const widget=await render((args.widgetParameter || "summary").trim().toLowerCase());
     Script.setWidget(widget);
