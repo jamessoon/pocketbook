@@ -11,10 +11,10 @@ export function useRecurringBills(householdId:string){
   return useQuery({queryKey:['recurring',householdId],queryFn:async()=>{
     const bills:Bill[]=[]
     for(let offset=0;;offset+=500){
-      const {data,error}=await supabase.from('recurring_items').select('id,name,category_id,amount,amount_type,interval_months,due_day,start_month,ends_on,stop_from_month,stop_from_date,active,last_posted_month')
+      const {data,error}=await supabase.from('recurring_items').select('*')
         .eq('household_id',householdId).order('active',{ascending:false}).order('name').order('id').range(offset,offset+499)
       if(error)throw error
-      bills.push(...data)
+      bills.push(...data.filter(row=>!row.deleted_at))
       if(data.length<500)return bills
     }
   }})

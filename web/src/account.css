@@ -71,3 +71,8 @@ html[data-theme="dark"] .account-chip { filter: brightness(1.38); }
   .account-cat-name { font-size: .86rem !important; }
   .account-chip { width: 24px; height: 28px; }
 }
+
+.bill-list-row{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line)}
+.bill-list-row .trip-row{border:0;flex:1;min-width:0}
+.bill-delete{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.bill-delete p{margin:4px 0 8px}

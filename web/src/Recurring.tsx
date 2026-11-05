@@ -2,6 +2,7 @@ import {useEffect,useState,type FormEvent} from 'react'
 import {Link,useLocation,useSearchParams} from 'react-router-dom'
 import {useMutation,useQueryClient} from '@tanstack/react-query'
 import {useRecurringBills,type Bill} from './recurring-data'
+import {IconTrash} from '@tabler/icons-react'
 import {supabase} from './client'
 import {today} from './dates'
 import {formatMoney} from './entry-helpers'
@@ -54,6 +55,12 @@ export function Recurring({household,categories}:{household:Household;categories
   const [params,setParams]=useSearchParams()
   const edit=params.get('edit')
   const query=useRecurringBills(household.id)
+  const [deleting,setDeleting]=useState<string|null>(null)
+  const cache=useQueryClient()
+  const remove=useMutation({mutationFn:async(id:string)=>{
+    const {error}=await supabase.rpc('delete_recurring_bill',{p_id:id})
+    if(error)throw error
+  },onSuccess:async()=>{await cache.invalidateQueries();setDeleting(null)}})
   const {hash}=useLocation()
   useEffect(()=>{
     if(hash==='#recurring' && !query.isPending)document.getElementById('recurring')?.scrollIntoView({block:'start'})
@@ -66,9 +73,16 @@ export function Recurring({household,categories}:{household:Household;categories
     {edit && (edit==='new' || bill) ? <BillForm key={edit} bill={bill} household={household} categories={categories} close={()=>setParams({})}/> :
     <section className="trip-list">{!query.data.length&&<p>Add a bill to reserve it in your monthly budget.</p>}
       {query.data.map(item=>{const c=categories.find(category=>category.id===item.category_id)
-        return <Link key={item.id} className="trip-row" to={'/settings?edit='+item.id+'#recurring'}><span><strong>{item.name}</strong>
+        return <div key={item.id} className="bill-list-item"><div className="bill-list-row"><Link className="trip-row" to={'/settings?edit='+item.id+'#recurring'}><span><strong>{item.name}</strong>
           <small>{periods[item.interval_months]} · {item.interval_months===0?'From day':'Day'} {item.due_day} · {!item.active?'Paused':item.ends_on && item.ends_on<today(household.timezone)?'Ended':'Active'}{(item.stop_from_date || item.stop_from_month) ? ' · Stops before '+(item.stop_from_date || item.stop_from_month) : item.ends_on ? ' · Through '+item.ends_on : ''}</small></span>
           <span>{c&&<CategoryIcon name={c.icon} size={16}/>} {item.amount_type==='variable'?'~':''}{formatMoney(item.amount)}</span></Link>
+          <button className="account-icon" aria-label={'Delete '+item.name} disabled={remove.isPending} onClick={()=>{remove.reset();setDeleting(item.id)}}><IconTrash size={18}/></button></div>
+          {deleting===item.id && <div className="bill-delete" role="group" aria-label="Confirm bill deletion">
+            <strong>Delete {item.name}?</strong><p>Future charges will stop. Expenses already posted will stay in Expenses.</p>
+            {remove.error && <p role="alert">{message(remove.error)}</p>}
+            <div className="trip-actions"><button disabled={remove.isPending} onClick={()=>setDeleting(null)}>Cancel</button>
+              <button className="ee-remove" disabled={remove.isPending} onClick={()=>remove.mutate(item.id)}>Delete bill</button></div>
+          </div>}</div>
       })}</section>}
   </section>
 }

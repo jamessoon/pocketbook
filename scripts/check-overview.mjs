@@ -21,6 +21,7 @@ try{
    await page.route('https://hh-test.supabase.co/**',async route=>{
     const url=new URL(route.request().url())
     const table=url.pathname.split('/').pop()
+    if(table==='delete_recurring_bill'){assert.equal(route.request().postDataJSON().p_id,bill.id);bill=null;return route.fulfill({status:204})}
     if(table==='recurring_items'){
       const method=route.request().method()
       if(method==='POST' || method==='PATCH'){
@@ -73,6 +74,13 @@ try{
    assert.equal(bill.amount,45)
    assert.equal(bill.interval_months,3)
    assert.equal(bill.active,false)
+   await page.getByLabel('Delete Internet').click()
+   await page.getByRole('button',{name:'Cancel',exact:true}).click()
+   assert.equal(bill.id,'bill1')
+   await page.getByLabel('Delete Internet').click()
+   await page.getByRole('button',{name:'Delete bill',exact:true}).click()
+   await page.getByText('Add a bill to reserve it in your monthly budget.').waitFor()
+   assert.equal(bill,null)
    await page.goto(origin)
    await page.getByLabel('Quick add: Food & drink').click()
    await page.getByRole('button',{name:'Food & drink',exact:true,pressed:true}).waitFor()

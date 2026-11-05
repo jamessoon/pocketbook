@@ -108,3 +108,5 @@ Apply `supabase/migrations/202611050009_recurring_deletion.sql` after the date-r
 After migrations 008 and 009, apply `supabase/migrations/202611050010_weekly_recurrence.sql`. In **Today → Recurring**, choose **Weekly**, **Monthly** (default) or **Yearly** plus From and To. Weekly repeats every seven days starting on From, including across month boundaries. Monthly and yearly repeats use the original calendar day, clamped to month end when necessary. Each due occurrence within the inclusive range is reserved in that month's budget and posted by the existing scheduler. Weekly deletion choices operate on individual occurrences.
 
 In **Expenses**, scheduled occurrences for the selected month appear separately from posted expenses. Both display the recurring description, frequency and end date (or **No end date**).
+
+To remove an entire schedule, apply `supabase/migrations/202611050011_delete_recurring_bill.sql` and go to **Settings → Recurring costs**. Tap the trash icon beside a bill and confirm **Delete bill**. This cancels unposted occurrences and keeps previously posted expenses and their budget history.
