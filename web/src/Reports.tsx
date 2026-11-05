@@ -63,10 +63,17 @@ export function Reports({household}:{household:Household}){
       const detail=await result.error.context?.json?.().catch(()=>null)
       throw new Error(detail?.error || result.error.message)
     }
-    return result.data.status
-  },onSuccess:status=>{
+    return result.data as {status:string;newlyAccepted?:number}
+  },onSuccess:({status,newlyAccepted})=>{
     setSelected('')
-    setNotice(status==='busy'?'This report is being prepared. Refresh shortly.':status==='sent'?'Report sent. Each recipient receives one copy.':'Report saved. Add recipients in Settings to send it.')
+    const messages:Record<string,string>={
+      busy:'This report is being prepared. Refresh shortly.',
+      already_sent:'This month’s report was already emailed. No new email was sent.',
+      accepted:'Resend accepted '+newlyAccepted+' new email'+(newlyAccepted===1?'':'s')+' for delivery.',
+      sent:'This month’s report is marked as emailed. Repeat requests do not send another copy.',
+      saved:'Report saved. Add recipients in Settings to send it.',
+    }
+    setNotice(messages[status] || 'Check the saved report for its latest status.')
   },onSettled:()=>client.invalidateQueries({queryKey:key})})
   const report=query.data?.find(r=>r.month===selected) || query.data?.[0]
   return <section className="history-page"><Link to="/">‹ Overview</Link><div className="section-head"><h1>Reports</h1><Link to="/settings#report-recipients">Recipients</Link></div>
@@ -74,7 +81,7 @@ export function Reports({household}:{household:Household}){
     {notice&&<p role="status">{notice}</p>}{(query.error || send.error)&&<p role="alert">{problem(send.error || query.error)}</p>}
     {query.isPending?<p>Loading reports…</p>:report?<><div className="section-head"><label>Report month <select aria-label="Report month" value={report.month} onChange={e=>setSelected(e.target.value)}>
       {query.data?.map(r=><option key={r.id} value={r.month}>{monthName(r.month)}</option>)}</select></label>
-      <small>{report.sent_at?'Email sent':'Saved'}</small></div><ReportDetail report={report}/></>:
+      <small>{report.sent_at?'Email recorded '+new Intl.DateTimeFormat('en-SG',{timeZone:household.timezone,day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(report.sent_at)):'Saved'}</small></div><ReportDetail report={report}/></>:
       !query.error&&<section className="card"><h2>No reports yet</h2><p>Prepare last month’s report above, or wait for the monthly schedule.</p></section>}
   </section>
 }

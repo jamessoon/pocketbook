@@ -31,9 +31,10 @@ try{
       return route.fulfill({json:method==='GET'?recipients:null})
     }
     if(table==='monthly-report'){
+      if(report)return route.fulfill({json:{status:'already_sent'}})
       report={id:'rep1',month:'2025-05-01',sent_at:'2025-06-01',stats:{
         total:100,budget:2000,fixed:80,daily:20,previous:90,days_over:1,unconfirmed:0,categories:[{id:'house',name:'House',amount:80,previous:60,prior_average:50}],trips:[],largest:[{description:'Roof repair',amount:80,spent_on:'2025-05-05',trip:false}],new_descriptions:[{description:'Roof repair',amount:80,entries:1}]}}
-      return route.fulfill({json:{status:'sent'}})
+      return route.fulfill({json:{status:'accepted',newlyAccepted:1}})
     }
     if(table==='spending_history'){
       const {p_start,p_category}=route.request().postDataJSON()
@@ -123,6 +124,9 @@ try{
    await page.getByRole('heading',{name:'No reports yet'}).waitFor()
    await page.getByRole('button',{name:'Send last month’s report now'}).click()
    await page.getByText('Budget remaining',{exact:true}).waitFor()
+   await page.getByText('Resend accepted 1 new email for delivery.').waitFor()
+   await page.getByRole('button',{name:'Send last month’s report now'}).click()
+   await page.getByText('This month’s report was already emailed. No new email was sent.').waitFor()
    await page.getByText('Up $10.00 (11.1%) from $90.00 last month',{exact:true}).waitFor()
    await page.getByRole('heading',{name:'Highest expense',exact:true}).waitFor()
    await page.getByRole('heading',{name:'Highest-spending categories',exact:true}).waitFor()

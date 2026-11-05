@@ -30,7 +30,7 @@ Deno.serve(async req=>{
     const claim=await db.rpc('claim_monthly_report',{p_household:household,p_lease:lease,p_job_secret:secret});
     if(claim.error)return reply(claim.error.code==='42501'?403:500,{error:'Could not claim report. Check the report migration and scheduler credential.'});
     const work=claim.data;
-    if(work.status!=='claimed')return reply(200,{status:work.status});
+    if(work.status!=='claimed')return reply(200,{status:work.status==='sent'?'already_sent':work.status});
     reportId=work.id;
     const stats:ReportStats=work.stats;
     async function ownedUpdate(fields:Record<string,unknown>){
@@ -43,6 +43,7 @@ Deno.serve(async req=>{
     const from=env('REPORT_FROM_EMAIL'),resend=env('RESEND_API_KEY');
     if(!from || !resend)throw new Error('Report saved. Set RESEND_API_KEY and REPORT_FROM_EMAIL to send it.');
     const failures:string[]=[];
+    let newlyAccepted=0, previouslyAccepted=0;
     for(const {email} of recipients.data){
       await ownedUpdate({lease_until:new Date(Date.now()+600000).toISOString()});
       try {
@@ -59,15 +60,18 @@ Deno.serve(async req=>{
         if(!delivery.provider_id && work.ai_text && delivery.payload.text.endsWith('\n\n'+work.ai_text)){
           throw new Error('A pending email from the earlier report format needs a Resend dashboard check before retrying.');
         }
+        if(delivery.provider_id){previouslyAccepted++;continue;}
         await deliverEmail(delivery,resend,async providerId=>{
           const mark=await db.from('report_deliveries').update({provider_id:providerId}).eq('id',delivery.id);
           if(mark.error)throw new Error('Could not record the accepted delivery. Retry from Reports.');
         });
+        newlyAccepted++;
       }catch(error){failures.push(error instanceof Error?error.message:'Email delivery failed.');}
     }
     if(failures.length)throw new Error(failures.length+' delivery attempt(s) pending. '+failures[0]);
+    if(!newlyAccepted && !previouslyAccepted)return reply(200,{status:'saved'});
     await ownedUpdate({sent_at:new Date().toISOString()});
-    return reply(200,{status:'sent'});
+    return reply(200,{status:newlyAccepted?'accepted':'already_sent',newlyAccepted});
   }catch(error){
     return reply(502,{error:error instanceof Error?error.message:'Report failed. Check the function logs.'});
   }finally{
