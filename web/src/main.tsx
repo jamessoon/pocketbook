@@ -20,6 +20,18 @@ function App() {
   const location = useLocation()
   const navigate = useNavigate()
   useEffect(()=>{
+    const update=()=>{
+      const surface=location.pathname==='/add'?'--surface':'--bg'
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content',getComputedStyle(document.documentElement).getPropertyValue(surface).trim())
+    }
+    update()
+    const observer=new MutationObserver(update)
+    observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']})
+    const scheme=matchMedia('(prefers-color-scheme: dark)')
+    scheme.addEventListener('change',update)
+    return ()=>{observer.disconnect();scheme.removeEventListener('change',update)}
+  },[location.pathname])
+  useEffect(()=>{
     if(!configured) return
     const {data} = supabase.auth.onAuthStateChange((_event,s)=>setSession(s))
     supabase.auth.getSession().then(({data,error})=>{if(error)setAuthError(error.message);setSession(data.session)})
@@ -48,12 +60,16 @@ function App() {
   const props={...data,month}
   const nav=[{to:'/',name:'Overview',Icon:IconHome},{to:'/expenses',name:'Expenses',Icon:IconListDetails},{to:'/settings',name:'Settings',Icon:IconSettings}]
   return <div className="layout"><aside className="sidebar"><Brand/><nav>{nav.map(({to,name,Icon})=><NavLink key={to} to={to} end><Icon size={19}/>{name}</NavLink>)}</nav><div className="household-name"><IconHome size={20}/><span>{data.household.name}</span></div></aside>
+    {location.pathname!=='/add' && <header className="phone-header"><nav aria-label="Main navigation">{nav.map(({to,name})=><NavLink to={to} end key={to}>{name}</NavLink>)}</nav></header>}
     <main className="content"><Routes>
     <Route path="/" element={<Dashboard {...props} onMonth={setMonth}/>}/>
     <Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
     <Route path="/add" element={<QuickAdd {...props}/>}/><Route path="/settings" element={<Settings {...props}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/></Routes></main>
-    {location.pathname!=='/add' && <div className="mobile-nav">{nav.map(({to,name,Icon})=><NavLink to={to} end key={to}><Icon size={19}/>{name}</NavLink>)}<NavLink to="/add"><IconPlus size={19}/>Add</NavLink></div>}</div>
+    {location.pathname!=='/add' && <footer className="phone-action"><LinkToAdd category={location.pathname==='/expenses' ? new URLSearchParams(location.search).get('category') : null}/></footer>}</div>
+}
+function LinkToAdd({category}:{category:string|null}){
+  return <NavLink className="primary" to={category ? '/add?category='+encodeURIComponent(category) : '/add'}><IconPlus size={19}/>Add expense</NavLink>
 }
 function Brand(){return <div className="brand"><span><IconWallet size={23} stroke={1.8}/></span>HHExpense</div>}
 createRoot(document.getElementById('root')!).render(<React.StrictMode><QueryClientProvider client={cache}><BrowserRouter><App/></BrowserRouter></QueryClientProvider></React.StrictMode>)

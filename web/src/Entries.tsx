@@ -260,7 +260,7 @@ function ListBody({ household, month, members, categories, category }: EntryProp
   }
   const categoryName = categories.find(c => c.id === category)?.name;
   return <section className="ee-page">
-    <div className="ee-title"><div><p>{dateLabel(month, { month: "long", year: "numeric" })}</p><h1>{categoryName || "Expenses"}</h1></div>
+    <div className="ee-title"><div><p>{dateLabel(month, { month: "long", year: "numeric" })}</p><h1 className={categoryName ? undefined : "phone-tab-title"}>{categoryName || "Expenses"}</h1></div>
       <button className="ee-action" onClick={() => navigate(category ? "/add?category=" + category : "/add")}><IconPlus size={17}/>Add expense</button></div>
     {query.isPending && <p role="status">Loading expenses…</p>}
     {query.error && <Problem error={query.error}/>}

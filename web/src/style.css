@@ -13,3 +13,28 @@ body{margin:0;background:var(--bg);color:var(--text)}button,input,select,textare
 .chart-shortcut small{font-size:11px;font-weight:650;line-height:1.2}
 .chart-shortcuts .ring{width:100%;max-width:210px;margin:0}
 @media(min-width:721px) and (max-width:950px){.cards{grid-template-columns:1fr}}
+
+.phone-header,.phone-action{display:none}
+@media(max-width:720px){
+  .phone-header{display:block;position:sticky;top:0;z-index:4;padding:env(safe-area-inset-top) 16px 0;background:var(--bg)}
+  .phone-header nav{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line)}
+  .phone-header a{display:grid;place-items:center;min-height:50px;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent;font-weight:550}
+  .phone-header a.active{border-color:var(--accent);color:var(--accent);font-weight:700}
+  .phone-action{display:block;position:fixed;bottom:0;inset-inline:0;z-index:4;background:var(--bg);padding:8px 16px calc(8px + env(safe-area-inset-bottom))}
+  .phone-action a{display:flex;width:100%;min-height:48px}
+  .layout>.content{padding-top:16px;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  .layout>.content:has(.ee-quick){padding:0}
+  .page-head,.account-settings>h1,.phone-tab-title{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);margin:0}
+  .ee-title>.ee-action{display:none}
+  .ee-quick{max-width:none}
+  .ee-form{min-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));display:flex;flex-direction:column}
+  .ee-form>.ee-pad{margin-top:auto}
+}
+@media(max-width:720px) and (min-height:760px){
+  .ee-form{padding:8px 14px;gap:6px}
+  .ee-amount{flex:1 0 54px;max-height:95px}
+  .ee-slots{flex:1 0 auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;max-height:270px}
+  .ee-slots button{height:auto;min-height:44px}
+  .ee-slots button>span:last-child{white-space:normal;overflow-wrap:anywhere}
+  .ee-pad button,.ee-save{min-height:clamp(44px,6dvh,58px)}
+}

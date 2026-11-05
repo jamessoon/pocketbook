@@ -79,6 +79,10 @@ try {
     const overflow = await page.evaluate(() => [document.documentElement.scrollHeight, document.documentElement.scrollWidth]);
     assert.ok(rect && rect.y + rect.height <= 667, "Save below viewport");
     assert.deepEqual(overflow, [667,375], "Quick add overflow");
+    await page.setViewportSize({width:393,height:852});
+    const tallSave = await page.getByRole("button", {name:"Save expense"}).boundingBox();
+    assert.ok(tallSave && tallSave.y+tallSave.height >= 830 && tallSave.y+tallSave.height <= 852, "Keypad and Save should sit at the bottom");
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight),852);
     await expect(page.locator(".ee-slots button")).toHaveCount(categories.length);
     await page.getByRole("button", { name:"Transport", exact:true }).click();
     await page.getByRole("button", { name:"Save expense" }).click();
