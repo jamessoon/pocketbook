@@ -7,7 +7,6 @@ import {IconHome,IconListDetails,IconSettings,IconLuggage,IconPlus,IconWallet} f
 import {configured,supabase} from './client'
 import {Auth,Settings} from './Account'
 import {QuickAdd,ExpenseList,Confirm,ExpenseDeletionProvider} from './Entries'
-import {Recurring} from './Recurring'
 import {Trips} from './Trips'
 import {Dashboard} from './Dashboard'
 import {today} from './dates'
@@ -65,7 +64,7 @@ function App() {
     {location.pathname!=='/add' && <header className="phone-header"><nav aria-label="Main navigation">{nav.map(({to,name})=><NavLink to={to} end key={to}>{name}</NavLink>)}</nav></header>}
     <main className="content"><Routes>
     <Route path="/" element={<Dashboard {...props} onMonth={setMonth}/>}/>
-    <Route path="/recurring" element={<Recurring {...data}/>}/><Route path="/trips" element={<Trips {...props}/>}/><Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
+    <Route path="/recurring" element={<Navigate replace to={'/settings'+location.search+'#recurring'}/>}/><Route path="/trips" element={<Trips {...props}/>}/><Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
     <Route path="/add" element={<QuickAdd {...props}/>}/><Route path="/settings" element={<Settings {...props}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/></Routes></main>
     {location.pathname!=='/add' && <footer className="phone-action"><LinkToAdd trip={location.pathname==='/trips' ? new URLSearchParams(location.search).get('id') : null} category={location.pathname==='/expenses' ? new URLSearchParams(location.search).get('category') : null}/></footer>}</div></ExpenseDeletionProvider>

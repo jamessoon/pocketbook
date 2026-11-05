@@ -5,6 +5,7 @@ import {
   IconDeviceDesktop, IconEdit, IconLogout, IconMoon, IconPlus, IconSun,
   IconWallet, IconX,
 } from '@tabler/icons-react'
+import {Recurring} from './Recurring'
 import { supabase } from './client'
 import { CategoryIcon, iconChoices, palette } from './icons'
 import type { Category, Household, Member } from './types'
@@ -88,7 +89,7 @@ export function Auth({loading = false}: {loading?: boolean}) {
       await cache.invalidateQueries({queryKey:['membership']})
     })
   }
-  if (loading && !action.busy) return <AccountFrame title="Loading household"><p role="status">Opening your household…</p></AccountFrame>
+  if (loading && !action.busy) return <AccountFrame title="Loading household"><p role="status">Opening your householdâ€¦</p></AccountFrame>
   const title = create ? 'Create household' : people ? 'Choose your name' : 'Enter household ID'
   return <AccountFrame title={title}>
     <form className="account-form" onSubmit={submit}>
@@ -183,7 +184,7 @@ function WidgetSettings() {
   }
   return <section className="account-section"><h2>iPhone widget</h2>
     {!token ? <button onClick={()=>load()} disabled={action.busy}>Set up Scriptable</button> : <>
-      <p>Paste this household’s script into Scriptable and name it HHExpense. Keep it private.</p>
+      <p>Paste this householdâ€™s script into Scriptable and name it HHExpense. Keep it private.</p>
       <div className="account-row"><button onClick={()=>action.run(copyScript,'Widget script copied.')}>Copy widget script</button>
         <button onClick={()=>action.run(()=>navigator.clipboard.writeText(token),'Widget token copied.')}>Copy token</button></div>
       {confirmRotate ? <div><p>Replace the token for all household widgets? Each iPhone will need a fresh copy of the script.</p>
@@ -248,6 +249,7 @@ export function Settings({ household, members, categories }: { household: Househ
       <h3>Members</h3>{members.map(row => <div className="account-member" key={row.user_id}><strong>{row.display_name}</strong><small>{row.email}</small></div>)}
     </div>
     <Status {...action} />
+    <Recurring household={household} categories={categories}/>
     <div className="account-section">
       <h2>Appearance</h2><div className="account-switch">{([
         ['system', IconDeviceDesktop], ['light', IconSun], ['dark', IconMoon],

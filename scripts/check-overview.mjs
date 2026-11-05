@@ -46,7 +46,7 @@ try{
    assert.ok(await page.getByLabel('Add Food & drink expense').getAttribute('href')==='/add?category=food')
    assert.ok(await page.getByRole('link',{name:/expense to confirm/}).isVisible())
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
-   await page.getByRole('link',{name:'Recurring costs'}).click()
+   await page.getByRole('link',{name:'Settings',exact:true}).filter({visible:true}).click()
    await page.getByRole('button',{name:'New bill'}).click()
    await page.getByLabel('Bill name').fill('Internet')
    await page.getByLabel('Category',{exact:true}).selectOption('food')
