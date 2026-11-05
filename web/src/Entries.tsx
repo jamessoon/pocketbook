@@ -8,7 +8,7 @@ import { useRecurringBills,recurringDetails } from './recurring-data';
 import { useTrips,defaultTrip } from "./trip-data";
 import { today, shiftMonth } from "./dates";
 import type { Category, Household, Member } from "./types";
-import { asCents, currencyOrder, dateLabel, formatMoney, keypadDisplay, keypadInput, pressKey, rememberCurrency } from "./entry-helpers";
+import { asCents, currencyOrder, dateLabel, formatMoney, calculation, calculationKey, changeKeypadCurrency, keypadInput, rememberCurrency } from "./entry-helpers";
 import "./entries.css";
 
 export interface EntryProps {
@@ -130,8 +130,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
   const deletion=useContext(DeletionContext)!;
   const [askDelete,setAskDelete]=useState(false);
   const requestId = useRef<string>();
-  const displayedAmount = keypadDisplay(amount, currency);
-  const amountValue = Number(displayedAmount);
+  const {display:displayedAmount,value:amountValue,expression,complete} = calculation(amount,currency);
   const foreign = currency !== "SGD";
   const sameMoney = !!original && currency === original.original_currency && amountValue === Number(original.original_amount);
   const active = categories.filter(c => !c.archived || c.id === original?.category_id);
@@ -160,7 +159,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
   const rate = sameMoney ? Number(original.fx_rate_estimate) : rateQuery.data;
   const sgdAmount = sameMoney ? Number(original.amount_sgd) : asCents(foreign ? amountValue * Number(rate) : amountValue);
   const tripUnavailable = !trips.isPending && ((!!tripId && !pickedTrip) || (!!requestedTrip && selectedTrip === undefined && !pickedTrip));
-  const canSave = !tripUnavailable && !trips.isPending && !trips.error && !!picked && amountValue > 0 && Number.isFinite(sgdAmount) && sgdAmount > 0 && !!date && (!foreign || sameMoney || !!rate);
+  const canSave = complete && !tripUnavailable && !trips.isPending && !trips.error && !!picked && amountValue > 0 && Number.isFinite(sgdAmount) && sgdAmount > 0 && !!date && (!foreign || sameMoney || !!rate);
   const scheduleRequest = useRef<string>();
   const save = useMutation({
     mutationFn: async () => {
@@ -218,7 +217,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
         <h1>{original ? "Edit expense" : "Add expense"}</h1><span/></header>
       {original?.recurring_item_id && <div className="ee-title"><span><IconRepeat size={16}/> {recurringDetails(original.recurring_items)}</span>
         <button disabled={!!deletion.pendingDeletion} onClick={()=>setAskDelete(true)}>Delete</button></div>}
-      <div className="ee-amount"><output aria-label="Amount">{displayedAmount}</output><button className="ee-currency" disabled={repeat} onClick={() => openSheet("currency")}>{currency}<IconChevronRight size={14}/></button></div>
+      <div className="ee-amount"><div className="ee-readout">{expression && <small title={expression}>{expression}</small>}<output aria-label="Amount">{displayedAmount}</output></div><button className="ee-currency" disabled={repeat} onClick={() => openSheet("currency")}>{currency}<IconChevronRight size={14}/></button></div>
       <div className="ee-slots" aria-label="Categories">
         {active.map(c => <button key={c.id} aria-pressed={c.id === categoryId} title={c.name} onClick={() => setCategory(c.id)}>
           <CategoryGlyph category={c}/><span>{c.name}</span></button>)}
@@ -241,8 +240,8 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
       </div>}
       {save.error && <Problem error={save.error}/>}
       <div className="ee-pad" aria-label="Numeric keypad">
-        {["1","2","3","4","5","6","7","8","9",".","0","delete"].map(key =>
-          <button key={key} aria-label={key === "delete" ? "Backspace" : key} onClick={() => setAmount(value => pressKey(value, key, currency))}>{key === "delete" ? <IconBackspace size={23}/> : key}</button>)}
+        {["1","2","3","+","4","5","6","7","8","9","-",".","0","delete"].map(key =>
+          <button key={key} data-key={key} aria-label={key === "delete" ? "Backspace" : key === "+" ? "Plus" : key === "-" ? "Minus" : key} onClick={() => setAmount(value => calculationKey(value, key, currency))}>{key === "delete" ? <IconBackspace size={23}/> : key === "-" ? "−" : key}</button>)}
       </div>
       <button className="ee-save" disabled={!canSave || save.isPending} onClick={() => save.mutate()}><IconCheck size={18}/>{save.isPending ? "Saving…" : repeat ? "Save recurring expense" : original ? "Save changes" : "Save expense"}</button>
     </div>
@@ -257,7 +256,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
         <label className="ee-filter"><IconSearch size={18}/><input placeholder="Search" aria-label="Search options" value={filter} onChange={e => setFilter(e.target.value)}/></label>
         <div className="ee-options">
           {currencyOrder(household.id).filter(c => c.includes(filter.trim().toUpperCase())).map(c =>
-              <button key={c} onClick={() => { if (c !== currency) { setAmount(keypadInput(amountValue, c)); setCurrency(c); } setSheet(null); }}>{c}{c === currency && <IconCheck size={16}/>}</button>)}
+              <button key={c} onClick={() => { if (c !== currency) { setAmount(changeKeypadCurrency(amount, currency, c)); setCurrency(c); } setSheet(null); }}>{c}{c === currency && <IconCheck size={16}/>}</button>)}
         </div>
       </>}
     </Sheet>}

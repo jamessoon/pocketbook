@@ -87,8 +87,9 @@ try {
     await expect(page.getByRole("button", { name:"Food & drink", exact:true })).toHaveAttribute("aria-pressed","true");
     await page.getByRole("button", { name:"SGD", exact:true }).click();
     await page.getByRole("button", { name:"MYR", exact:true }).click();
-    await page.getByRole("button", { name:"3", exact:true }).click();
-    await page.getByRole("button", { name:"0", exact:true }).click();
+    for(const key of ["4","0","Minus","1","5","Plus","5"])
+      await page.getByRole("button",{name:key,exact:true}).click();
+    await expect(page.getByLabel("Amount",{exact:true})).toHaveText("30.00");
     await page.getByRole("button", { name:"Lunch set", exact:true }).click();
     await expect(page.getByText(/at today’s rate/)).toBeVisible();
     await expect(page.getByRole("textbox", { name:"Description" })).toHaveValue("Lunch set");
