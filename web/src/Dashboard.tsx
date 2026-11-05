@@ -6,7 +6,7 @@ import {CategoryIcon} from './icons'
 import {shiftMonth,today} from './dates'
 import type {Category,Household} from './types'
 const cash=(n:number)=>new Intl.NumberFormat('en-SG',{style:'currency',currency:'SGD',currencyDisplay:'narrowSymbol'}).format(n)
-type Summary={monthly_budget:number;fixed_costs:number;day_to_day_spent:number;daily_budget:number;left_today:number;remaining:number}
+type Summary={monthly_budget:number;fixed_costs:number;day_to_day_spent:number;daily_budget:number;left_today:number;remaining:number;fixed_items:{id:string;amount:number;posted:boolean}[]}
 export function Dashboard({household,categories,month,onMonth}:{household:Household;categories:Category[];month:string;onMonth:(m:string)=>void}){
   const current=month.slice(0,7)===today(household.timezone).slice(0,7)
   const period=new Intl.DateTimeFormat('en-SG',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(month))
@@ -21,10 +21,25 @@ export function Dashboard({household,categories,month,onMonth}:{household:Househ
       for(const row of data) totals.set(row.category_id,(totals.get(row.category_id) || 0)+Number(row.amount_sgd))
       if(data.length<500)break
     }
-    return {summary:summary.data as Summary,count:confirm.count || 0,totals}
+    const monthSummary=summary.data as Summary
+    const scheduled=new Map<string,number>()
+    const pending=monthSummary.fixed_items.filter(item=>!item.posted)
+    const ids=[...new Set(pending.map(item=>item.id))]
+    const categoryByBill=new Map<string,string>()
+    for(let start=0;start<ids.length;start+=100){
+      const result=await supabase.from('recurring_items').select('id,category_id')
+        .eq('household_id',household.id).in('id',ids.slice(start,start+100))
+      if(result.error)throw result.error
+      for(const bill of result.data)categoryByBill.set(bill.id,bill.category_id)
+    }
+    for(const occurrence of pending){
+      const category=categoryByBill.get(occurrence.id)
+      if(category)scheduled.set(category,(scheduled.get(category) || 0)+Number(occurrence.amount))
+    }
+    return {summary:monthSummary,count:confirm.count || 0,totals,scheduled}
   }})
   const q=query.data,s=q?.summary
-  const rows=categories.map(c=>({...c,value:q?.totals.get(c.id) || 0})).filter(c=>!c.archived || c.value>0)
+  const rows=categories.map(c=>({...c,value:q?.totals.get(c.id) || 0,scheduled:q?.scheduled.get(c.id) || 0})).filter(c=>!c.archived || c.value>0 || c.scheduled>0)
   const total=rows.reduce((n,c)=>n+c.value,0)
   const shortcuts = rows.filter(c=>!c.archived)
   const sideRows = Math.max(2,Math.ceil((shortcuts.length-10)/2))
@@ -52,6 +67,6 @@ export function Dashboard({household,categories,month,onMonth}:{household:Househ
    <section className="card budget"><div className="section-head"><h2>Household budget</h2></div><small>Remaining this month</small><strong className="hero-num">{cash(s.remaining)}</strong><div className="budget-bar" aria-label="Fixed costs and day-to-day spending as shares of budget">{[s.fixed_costs,s.day_to_day_spent].map((x,i)=><i key={i} style={{width:Math.min(100,100*x/Math.max(1,s.monthly_budget))+'%'}}/>)}</div>
    <dl><div><dt>Fixed costs</dt><dd>{cash(s.fixed_costs)}</dd></div><div><dt>Day-to-day spending</dt><dd>{cash(s.day_to_day_spent)}</dd></div>{current&&<><div><dt>Daily budget</dt><dd>{cash(s.daily_budget)}</dd></div><div><dt>Left today</dt><dd className={s.left_today<0?'negative':''}>{cash(s.left_today)}</dd></div></>}</dl>
    </section></div>
-   <section className="category-section"><div className="section-head"><h2>Categories</h2><Link to="/settings">Manage categories</Link></div><div className="category-grid">{rows.map(c=><div key={c.id} className="category-card"><Link className="category-link" to={'/expenses?category='+c.id}><span className="glyph" style={{color:c.color}}><CategoryIcon name={c.icon} size={21}/></span><span>{c.name}<strong>{cash(c.value)}</strong></span></Link>{!c.archived&&<Link className="category-add" aria-label={'Add '+c.name+' expense'} to={'/add?category='+c.id}><IconPlus size={18}/></Link>}</div>)}</div></section></>}
+   <section className="category-section"><div className="section-head"><h2>Categories</h2><Link to="/settings">Manage categories</Link></div><div className="category-grid">{rows.map(c=><div key={c.id} className="category-card"><Link className="category-link" to={'/expenses?category='+c.id}><span className="glyph" style={{color:c.color}}><CategoryIcon name={c.icon} size={21}/></span><span>{c.name}<strong>{cash(c.value+c.scheduled)}</strong>{c.scheduled>0 && <small>Includes {cash(c.scheduled)} scheduled</small>}</span></Link>{!c.archived&&<Link className="category-add" aria-label={'Add '+c.name+' expense'} to={'/add?category='+c.id}><IconPlus size={18}/></Link>}</div>)}</div></section></>}
    </>
 }

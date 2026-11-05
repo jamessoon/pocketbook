@@ -11,6 +11,7 @@ try{
   for(const width of [375,1200]){
    const page=await browser.newPage({viewport:{width,height:width===375?667:800},colorScheme:theme})
    const errors=[]
+   let housePosted=false
    let bill=null
    page.on('pageerror',e=>errors.push(e.message))
    await page.addInitScript(()=>{
@@ -26,18 +27,28 @@ try{
         bill={...bill,...route.request().postDataJSON(),id:'bill1'}
         return route.fulfill({status:200,json:{id:bill.id}})
       }
+      if(url.searchParams.get('select')==='id,category_id')return route.fulfill({json:[{id:'rent',category_id:'house'}]})
       return route.fulfill({status:200,json:bill?[bill]:[]})
     }
     const result=table==='members' ?[member]
-      :table==='trips'?[]:table==='households'?household:table==='categories'?[category]
-      :table==='month_summary'?{monthly_budget:2000,fixed_costs:100,day_to_day_spent:12,daily_budget:60,left_today:48,remaining:1888,fixed_items:[]}
-      :[{id:'expense1',category_id:'food',is_fixed:false,amount_sgd:12},{id:'fixed1',category_id:'food',is_fixed:true,amount_sgd:100}]
+      :table==='trips'?[]:table==='households'?household:table==='categories'?[category,{...category,id:'house',name:'House',icon:'home'}]
+      :table==='month_summary'?{monthly_budget:2000,fixed_costs:100,day_to_day_spent:12,daily_budget:60,left_today:48,remaining:1888,fixed_items:[{id:"rent",amount:80,posted:housePosted}]}
+      :[{id:'expense1',category_id:'food',is_fixed:false,amount_sgd:12},{id:'fixed1',category_id:'food',is_fixed:true,amount_sgd:100},...(housePosted?[{id:'rent-entry',category_id:'house',amount_sgd:80}]:[])]
     await route.fulfill({status:200,headers:{'Content-Range':'0-0/1','Access-Control-Expose-Headers':'Content-Range'},json:result})
    })
    await page.goto(origin)
    await page.getByRole('heading',{name:'Overview'}).waitFor()
    await page.getByText('Remaining this month').waitFor()
    assert.equal(await page.locator('.ring strong').innerText(),'$112.00')
+   const house=page.locator('.category-link').filter({hasText:'House'})
+   assert.equal(await house.locator('strong').innerText(),'$80.00')
+   assert.equal(await house.locator('small').innerText(),'Includes $80.00 scheduled')
+   housePosted=true
+   await page.reload()
+   await page.getByText('Remaining this month').waitFor()
+   assert.equal(await house.locator('strong').innerText(),'$80.00')
+   assert.equal(await house.locator('small').count(),0)
+   assert.equal(await page.locator('.ring strong').innerText(),'$192.00')
    await page.getByLabel('Previous month').click()
    await page.waitForFunction(()=>!document.querySelector('.budget')?.textContent.includes('Daily budget'))
    await page.getByLabel('Next month').click()
