@@ -4,3 +4,6 @@ verify_jwt = false
 
 [auth]
 enable_anonymous_sign_ins = true
+
+[functions.post-recurring]
+verify_jwt = false
