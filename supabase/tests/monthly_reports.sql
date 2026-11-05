@@ -19,6 +19,15 @@ do $$ declare s jsonb; begin
  or (s->'trips'->0->>'amount')::numeric<>20 or (s->>'days_over')::int<>1 or (s->>'unconfirmed')::int<>1
  or jsonb_array_length(s->'largest')<>2 then raise exception 'Report stats incorrect: %',s; end if;
 end $$;
+-- Compare normalized labels across months; aggregate duplicates and exclude blank descriptions.
+insert into public.expenses(household_id,category_id,spent_on,amount_sgd,original_amount,description)
+ select current_setting('test.a')::uuid,current_setting('test.cat')::uuid,'2025-05-06',n,n,label
+ from (values(3,' FIRST '),(8,' pRIOr '),(6,' ')) t(n,label);
+do $$ declare items jsonb; begin
+ items:=hh_private.report_new_descriptions(current_setting('test.a')::uuid,'2025-05-01');
+ if jsonb_array_length(items)<>2 or lower(items->0->>'description')<>'first' or
+   (items->0->>'entries')::int<>2 or (items->0->>'amount')::numeric<>53 then raise exception 'New descriptions wrong: %',items; end if;
+end $$;
 set local role service_role;
 do $$ declare work jsonb; begin
  begin perform public.claim_monthly_report(current_setting('test.a')::uuid,gen_random_uuid(),'wrong'); raise exception 'Bad scheduler credential accepted';
