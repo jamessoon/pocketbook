@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('posts recurring bills on Singapore dates, catches up and avoids duplicates', async () => {
+    await database.exec(readFileSync(new URL('./recurring.sql', import.meta.url), 'utf8'));
+  });
   it('scopes trip edits, protects history and excludes trips from household spending', async () => {
     await database.exec(readFileSync(new URL('./trips.sql', import.meta.url), 'utf8'));
   });
