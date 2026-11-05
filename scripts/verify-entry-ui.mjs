@@ -24,6 +24,7 @@ try {
     page.on("pageerror", e => errors.push(e.message));
     const rows = [expense("30000000-0000-4000-8000-000000000001", categories[0], "Shopping only"),
       expense("30000000-0000-4000-8000-000000000002", categories[1], "Phone credit")];
+    const trips = [];
     const queries = [];
     let allowRate = true;
     await page.addInitScript(({ session, theme }) => {
@@ -36,6 +37,13 @@ try {
       if (path === "/auth/v1/user") return json(user);
       if (path.endsWith("/members")) return json([member]);
       if (path.endsWith("/households")) return json(household);
+      if (path.endsWith("/trips")) {
+        if (req.method()==="POST") {
+          const trip={...req.postDataJSON(),id:"41000000-0000-4000-8000-000000000001"};
+          trips.push(trip);return json({id:trip.id},201);
+        }
+        return json(trips);
+      }
       if (path.endsWith("/categories")) return json(categories);
       if (path.endsWith("/category_usage")) return json(categories.map(c => ({ category_id: c.id, uses: 0 })));
       if (path.endsWith("/category_suggestions")) return json(["Lunch set","Coffee with family","Dinner at home"].map(description => ({ description })));
@@ -43,7 +51,7 @@ try {
       if (path.endsWith("/month_summary")) return json({ monthly_budget:1200, remaining:1184, fixed_items:[], fixed_costs:0, day_to_day_spent:16, daily_budget:30, left_today:14 });
       if (path.endsWith("/expenses")) {
         const id = params.get("id")?.slice(3);
-        const matches = rows.filter(e => (!id || e.id === id) && (!params.has("category_id") || e.category_id === params.get("category_id").slice(3)) && (!params.has("sgd_confirmed") || e.sgd_confirmed === (params.get("sgd_confirmed") === "eq.true")));
+        const matches = rows.filter(e => (!params.get("trip_id") || (params.get("trip_id")==="is.null" ? !e.trip_id : e.trip_id===params.get("trip_id").slice(3))) && (!id || e.id === id) && (!params.has("category_id") || e.category_id === params.get("category_id").slice(3)) && (!params.has("sgd_confirmed") || e.sgd_confirmed === (params.get("sgd_confirmed") === "eq.true")));
         if (req.method() === "POST") {
           const values = req.postDataJSON();
           rows.push({ ...expense(values.id, categories[0], ""), ...values });
@@ -124,6 +132,25 @@ try {
     await page.getByRole("button", {name:"1",exact:true}).click();
     await expect(page.getByRole("button", {name:/Rate unavailable/})).toBeVisible();
     await expect(page.getByRole("button", {name:"Save expense"})).toBeDisabled();
+    await page.goto(baseURL+"/trips");
+    await page.getByRole("button",{name:"New trip"}).click();
+    await page.getByLabel("Trip name").fill("Family holiday");
+    await page.getByLabel("Trip budget").fill("200");
+    await page.getByRole("button",{name:"Save trip"}).click();
+    await expect(page.getByRole("heading",{name:"Family holiday"})).toBeVisible();
+    await page.getByRole("link",{name:"Add expense",exact:true}).click();
+    await expect(page.getByLabel("Select trip")).toHaveText("Family holiday");
+    await page.getByRole("button",{name:"Food & drink",exact:true}).click();
+    await page.getByRole("button",{name:"5",exact:true}).click();
+    await page.getByRole("textbox",{name:"Description",exact:true}).fill("Trip snack");
+    await page.getByRole("button",{name:"Save expense"}).click();
+    await expect(page.getByRole("link",{name:/Trip snack/})).toBeVisible();
+    assert.equal(rows.at(-1).trip_id,trips[0].id);
+    await page.goto(baseURL+"/add");
+    await expect(page.getByLabel("Select trip")).toHaveText("Family holiday");
+    await page.getByLabel("Select trip").click();
+    await page.getByRole("button",{name:"No trip",exact:true}).click();
+    await expect(page.getByLabel("Select trip")).toHaveText("No trip");
     assert.deepEqual(errors, []);
     console.log(theme + ": entry screens and CRUD passed; quick add " + overflow + ", Save bottom " + Math.round(rect.y + rect.height) + "px.");
     await context.close();

@@ -50,7 +50,7 @@ Review `git status` and check the environment files are ignored. Commit the Phas
 
 Open the deployed HTTPS URL in Safari, tap **Share → Add to Home Screen**, enable **Open as Web App** if offered, then tap **Add**. Open HHExpense from its Home Screen icon and sign in there. In Settings try System, Light and Dark. Quick add opens from a category’s plus button or **Add expense**. Tap keypad digits, pick a suggestion, and save. Check both members see the entry. Test a foreign-currency expense, edit it, confirm its statement amount and try deletion with Undo.
 
-The service worker caches the versioned app shell. Household records and API responses require a connection. Recurring posting, trips and emailed reports are later phase deliveries.
+The service worker caches the versioned app shell. Household records and API responses require a connection. Trips are covered in step 7. Recurring posting and emailed reports are later deliveries.
 
 ## Repeat the Phase 1 checks
 
@@ -81,3 +81,9 @@ These browser scripts intercept backend traffic and exercise light and dark mode
 4. Widget taps open the deployed HHExpense site in Scriptable’s full-screen web view. A category opens the normal Add expense keypad with that category selected. If prompted, enter your household ID and choose your name in this view. The Home Screen installation and Scriptable can have separate sessions.
 5. Summary displays its last successful update time and requests a fresh server total approximately every five minutes; iOS controls the actual schedule. App-created entries are included the next time the widget runs. Tap Summary to see current Overview figures; dismissing the view also fetches the summary again. Offline reads show the cached view marked **Stale**.
 6. To revoke access choose **Settings → iPhone widget → Rotate token → Replace token**. Copy the new script to each iPhone. Old tokens immediately lose server access; cached views can remain until refreshed.
+
+## 7. Trips and group expenses
+
+Apply `supabase/migrations/202611050006_trips.sql` once to enable trip creation and editing. From **Overview → Trips**, create a trip with dates and an optional SGD budget. Open it and use **Add expense**. You can also select a trip in the regular keypad, or edit an existing expense to move it into or out of a trip.
+
+If exactly one unarchived trip covers today, quick add selects it by default. Choose **No trip** for everyday purchases. Overlapping trips require a choice. Trip totals include estimates until confirmed. Monthly and daily household budgets exclude trip spending. Archiving a trip preserves its expense history.

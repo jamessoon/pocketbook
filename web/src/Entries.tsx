@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { IconArrowLeft, IconBackspace, IconCalendar, IconCheck, IconChevronRight, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { supabase } from "./client";
 import { CategoryIcon } from "./icons";
+import { useTrips,defaultTrip } from "./trip-data";
 import { today, shiftMonth } from "./dates";
 import type { Category, Household, Member } from "./types";
 import { asCents, currencyOrder, dateLabel, formatMoney, keypadDisplay, keypadInput, pressKey, rememberCurrency } from "./entry-helpers";
@@ -74,10 +75,10 @@ export function QuickAdd(props: EntryProps) {
   });
   if (editId && original.isPending) return <p role="status">Loading expense…</p>;
   if (editId && original.error) return <Problem error={original.error}/>;
-  return <ExpenseForm key={editId || "new"} {...props} original={editId ? original.data : undefined} preselected={params.get("category")}/>;
+  return <ExpenseForm key={editId || "new"} {...props} original={editId ? original.data : undefined} requestedTrip={params.get("trip")} preselected={params.get("category")}/>;
 }
 
-function ExpenseForm({ household, categories, original, preselected }: EntryProps & { original?: Expense; preselected: string | null }) {
+function ExpenseForm({ household, categories, original, preselected, requestedTrip }: EntryProps & { requestedTrip:string|null; original?: Expense; preselected: string | null }) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const day = today(household.timezone);
@@ -86,7 +87,12 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
   const [currency, setCurrency] = useState(original?.original_currency || "SGD");
   const [description, setDescription] = useState(original?.description || "");
   const [date, setDate] = useState(original?.spent_on || day);
-  const [sheet, setSheet] = useState<"currency" | "date" | null>(null);
+  const trips = useTrips(household.id);
+  const [selectedTrip,setTrip] = useState<string | undefined>(original ? original.trip_id || "" : undefined);
+  const availableTrips = (trips.data || []).filter(t=>!t.archived || t.id===original?.trip_id);
+  const tripId = selectedTrip ?? (requestedTrip ? availableTrips.find(t=>t.id===requestedTrip)?.id || "" : defaultTrip(availableTrips,day));
+  const pickedTrip = availableTrips.find(t=>t.id===tripId);
+  const [sheet, setSheet] = useState<"currency" | "date" | "trip" | null>(null);
   const [filter, setFilter] = useState("");
   const requestId = useRef<string>();
   const displayedAmount = keypadDisplay(amount, currency);
@@ -118,12 +124,13 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
   });
   const rate = sameMoney ? Number(original.fx_rate_estimate) : rateQuery.data;
   const sgdAmount = sameMoney ? Number(original.amount_sgd) : asCents(foreign ? amountValue * Number(rate) : amountValue);
-  const canSave = !!picked && amountValue > 0 && Number.isFinite(sgdAmount) && sgdAmount > 0 && !!date && (!foreign || sameMoney || !!rate);
+  const tripUnavailable = !trips.isPending && ((!!tripId && !pickedTrip) || (!!requestedTrip && selectedTrip === undefined && !pickedTrip));
+  const canSave = !tripUnavailable && !trips.isPending && !trips.error && !!picked && amountValue > 0 && Number.isFinite(sgdAmount) && sgdAmount > 0 && !!date && (!foreign || sameMoney || !!rate);
   const save = useMutation({
     mutationFn: async () => {
       if (!canSave) throw new Error("Choose a category and a valid amount.");
       const fields = {
-        category_id: categoryId, description: description.trim(), spent_on: date, original_amount: amountValue,
+        trip_id: tripId || null, category_id: categoryId, description: description.trim(), spent_on: date, original_amount: amountValue,
         original_currency: currency, amount_sgd: sgdAmount, fx_rate_estimate: foreign ? rate || null : null,
         sgd_confirmed: sameMoney ? original.sgd_confirmed : !foreign,
       };
@@ -139,7 +146,7 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
           if (result.error.code !== "23505") throw result.error;
           // A dropped connection may hide a successful first insert.
           const previous = await getExpense(household.id, requestId.current);
-          if (previous.category_id !== fields.category_id || previous.description !== fields.description ||
+          if (previous.trip_id !== fields.trip_id || previous.category_id !== fields.category_id || previous.description !== fields.description ||
               previous.spent_on !== fields.spent_on || previous.original_currency !== fields.original_currency ||
               Number(previous.original_amount) !== fields.original_amount) {
             throw new Error("Your earlier save reached the household. Open Expenses to edit that entry.");
@@ -150,7 +157,7 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
     onSuccess: async () => {
       rememberCurrency(household.id, currency);
       await client.invalidateQueries();
-      navigate(original ? "/expenses" : "/", { replace: true });
+      navigate(tripId ? "/trips?id="+tripId : original ? "/expenses" : "/", { replace: true });
     },
   });
   function openSheet(next: typeof sheet) { setFilter(""); setSheet(next); }
@@ -167,7 +174,12 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
         {!!suggestions.data?.length && <div className="ee-suggestions" aria-label="Suggested descriptions">{suggestions.data.slice(0, 3).map(value =>
           <button key={value} title={value} onClick={() => setDescription(value)}>{value}</button>)}</div>}
       </div>
-      <div className="ee-details"><button onClick={() => openSheet("date")}><IconCalendar size={16}/>{date === day ? "Today" : dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</button></div>
+      <div className="ee-details"><button onClick={() => openSheet("date")}><IconCalendar size={16}/>{date === day ? "Today" : dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</button>
+        {!original?.is_fixed && <button aria-label="Select trip" onClick={()=>openSheet("trip")}>{pickedTrip?.name || "No trip"}</button>}
+        {pickedTrip && <small>Trip spending is outside the monthly budget.</small>}
+      </div>
+      {tripUnavailable && <p role="alert">This trip is unavailable. Choose another trip or select No trip.</p>}
+      {trips.error && <button onClick={()=>trips.refetch()}>Couldn’t load trips. Retry</button>}
       {foreign && <div className="ee-fx">
         <div>{sameMoney && original.sgd_confirmed ? "Confirmed " + formatMoney(sgdAmount) : rate ? "≈ " + formatMoney(sgdAmount) + (sameMoney ? " • saved estimate" : " at today’s rate") :
           rateQuery.isError ? <button onClick={() => rateQuery.refetch()}>Rate unavailable · Retry</button> : "Getting today’s rate…"}
@@ -181,8 +193,10 @@ function ExpenseForm({ household, categories, original, preselected }: EntryProp
       </div>
       <button className="ee-save" disabled={!canSave || save.isPending} onClick={() => save.mutate()}><IconCheck size={18}/>{save.isPending ? "Saving…" : original ? "Save changes" : "Save expense"}</button>
     </div>
-    {sheet && <Sheet close={() => setSheet(null)} title={sheet === "currency" ? "Choose currency" : "Expense date"}>
-      {sheet === "date" ? <label>Date<input type="date" aria-label="Expense date" value={date} onChange={e => { if (e.target.value) { setDate(e.target.value); setSheet(null); } }}/></label> : <>
+    {sheet && <Sheet close={() => setSheet(null)} title={sheet === "currency" ? "Choose currency" : sheet === "trip" ? "Choose trip" : "Expense date"}>
+      {sheet === "trip" ? <div className="ee-options"><button onClick={()=>{setTrip("");setSheet(null)}}>No trip</button>
+        {availableTrips.map(t=><button key={t.id} onClick={()=>{setTrip(t.id);setSheet(null)}}>{t.name}{t.id===tripId&&<IconCheck size={16}/>}</button>)}
+      </div> : sheet === "date" ? <label>Date<input type="date" aria-label="Expense date" value={date} onChange={e => { if (e.target.value) { setDate(e.target.value); setSheet(null); } }}/></label> : <>
         <label className="ee-filter"><IconSearch size={18}/><input placeholder="Search" aria-label="Search options" value={filter} onChange={e => setFilter(e.target.value)}/></label>
         <div className="ee-options">
           {currencyOrder(household.id).filter(c => c.includes(filter.trim().toUpperCase())).map(c =>
@@ -259,7 +273,7 @@ export function ExpenseDeletionProvider({children}: {children: ReactNode}) {
   }}}>
     {children}
     {pendingDeletion && <div role="status" className="ee-toast">
-      {committing ? "Deleting expense�" : "Expense marked for deletion"}
+      {committing ? "Deleting expense…" : "Expense marked for deletion"}
       <button disabled={committing} onClick={() => { if (!inFlight.current) setPending(null); }}>Undo</button>
     </div>}
     {!!error && <div className="ee-toast"><Problem error={error}/><button onClick={()=>setError(null)}>Dismiss</button></div>}
