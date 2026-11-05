@@ -9,7 +9,7 @@ import type {Household,Category} from './types'
 
 type Bill = {
   id:string; name:string;category_id:string;amount:number;amount_type:'fixed'|'variable'
-  interval_months:number;due_day:number;start_month:string;ends_on:string|null;active:boolean;last_posted_month:string|null
+  interval_months:number;due_day:number;start_month:string;ends_on:string|null;stop_from_month:string|null;active:boolean;last_posted_month:string|null
 }
 const periods:Record<number,string>={1:'Monthly',3:'Every 3 months',6:'Every 6 months',12:'Yearly'}
 const message=(error:unknown)=>error && typeof error==='object' && 'message' in error ? String(error.message) : 'Please try again.'
@@ -59,7 +59,7 @@ export function Recurring({household,categories}:{household:Household;categories
   const query=useQuery({queryKey:['recurring',household.id],queryFn:async()=>{
     const bills:Bill[]=[]
     for(let offset=0;;offset+=500){
-      const {data,error}=await supabase.from('recurring_items').select('id,name,category_id,amount,amount_type,interval_months,due_day,start_month,ends_on,active,last_posted_month')
+      const {data,error}=await supabase.from('recurring_items').select('id,name,category_id,amount,amount_type,interval_months,due_day,start_month,ends_on,stop_from_month,active,last_posted_month')
         .eq('household_id',household.id).order('active',{ascending:false}).order('name').order('id').range(offset,offset+499)
       if(error)throw error
       bills.push(...data)
@@ -75,7 +75,7 @@ export function Recurring({household,categories}:{household:Household;categories
     <section className="card trip-list">{!query.data.length&&<p>Add a bill to reserve it in your monthly budget.</p>}
       {query.data.map(item=>{const c=categories.find(category=>category.id===item.category_id)
         return <Link key={item.id} className="trip-row" to={'/recurring?edit='+item.id}><span><strong>{item.name}</strong>
-          <small>{periods[item.interval_months]} · Day {item.due_day} · {!item.active?'Paused':item.ends_on && item.ends_on<today(household.timezone)?'Ended':'Active'}{item.ends_on ? ' · Through '+item.ends_on : ''}</small></span>
+          <small>{periods[item.interval_months]} · Day {item.due_day} · {!item.active?'Paused':item.ends_on && item.ends_on<today(household.timezone)?'Ended':'Active'}{item.stop_from_month ? ' · Stops before '+item.stop_from_month : item.ends_on ? ' · Through '+item.ends_on : ''}</small></span>
           <span>{c&&<CategoryIcon name={c.icon} size={16}/>} {item.amount_type==='variable'?'~':''}{formatMoney(item.amount)}</span></Link>
       })}</section>}
   </section>

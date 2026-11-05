@@ -98,3 +98,7 @@ If exactly one unarchived trip covers today, quick add selects it by default. Ch
 ### Date ranges in quick add
 
 Apply `supabase/migrations/202611050008_recurring_ranges.sql` after the recurring migration. In **Add expense → Today**, choose **One time** to set a date, or **Recurring** to select **From** and **To** for a monthly SGD household bill. Save once on the keypad. The scheduler posts each due date within the inclusive range, including missed dates if you choose a past start. A day such as the 31st falls on the last day of shorter months. After the end date the bill stops posting and reserving budget. Existing open-ended schedules continue as before.
+
+### Delete a recurring expense
+
+Apply `supabase/migrations/202611050009_recurring_deletion.sql` after the date-range migration. In **Expenses**, open a row marked with the repeat icon and choose **Delete**, or use the row’s trash button. **Only this entry** skips that occurrence and keeps later bills. **Only future entries** keeps the selected occurrence and removes later ones. **This and future entries** removes the selected occurrence and later ones. The cutoff is relative to the selected entry, including later entries already posted. Undo is available for six seconds before the change is applied.

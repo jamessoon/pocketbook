@@ -26,6 +26,7 @@ try {
       expense("30000000-0000-4000-8000-000000000002", categories[1], "Phone credit")];
     const trips = [];
     const schedules = [];
+    const recurringDeletes=[];
     const queries = [];
     let allowRate = true;
     await page.addInitScript(({ session, theme }) => {
@@ -38,6 +39,9 @@ try {
       if (path === "/auth/v1/user") return json(user);
       if (path.endsWith("/members")) return json([member]);
       if (path.endsWith("/households")) return json(household);
+      if(path.endsWith("/delete_recurring_entry")){
+        recurringDeletes.push(req.postDataJSON()); return json(0);
+      }
       if (path.endsWith("/recurring_items")) {
         if(req.method()==="POST") { schedules.push(req.postDataJSON());return json(null,201); }
         return json(schedules);
@@ -177,6 +181,21 @@ try {
     await page.getByLabel("Date",{exact:true}).fill("2027-01-15");
     await page.getByRole("button",{name:"Done",exact:true}).click();
     await expect(page.getByRole("button",{name:"Save expense"})).toBeVisible();
+    const bill={...expense("31000000-0000-4000-8000-000000000001",categories[0],"Annual membership"),
+      is_fixed:true,recurring_item_id:"series1",recurring_items:{interval_months:12}};
+    rows.push(bill);
+    await page.goto(baseURL+"/expenses");
+    await page.getByRole("button",{name:/Annual membership.*Every year/}).click();
+    await page.getByRole("button",{name:"Delete",exact:true}).click();
+    const dialog=page.getByRole("dialog");
+    await expect(dialog.getByRole("button",{name:"Only this entry"})).toBeVisible();
+    await expect(dialog.getByRole("button",{name:"This and future entries"})).toBeVisible();
+    await dialog.getByRole("button",{name:"Only future entries"}).click();
+    await expect(page.getByRole("button",{name:/Annual membership.*Every year/})).toBeVisible();
+    await page.getByRole("navigation",{name:"Main navigation"}).getByText("Settings").click();
+    await expect.poll(()=>recurringDeletes.length,{timeout:10000}).toBe(1);
+    assert.equal(recurringDeletes[0].p_scope,"future");
+    assert.equal(recurringDeletes[0].p_entry,bill.id);
     assert.deepEqual(errors, []);
     console.log(theme + ": entry screens and CRUD passed; quick add " + overflow + ", Save bottom " + Math.round(rect.y + rect.height) + "px.");
     await context.close();

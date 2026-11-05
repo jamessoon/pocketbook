@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { IconArrowLeft, IconBackspace, IconCalendar, IconCheck, IconChevronRight, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArrowLeft, IconBackspace, IconCalendar, IconCheck, IconChevronRight, IconPlus, IconRepeat, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { supabase } from "./client";
 import { CategoryIcon } from "./icons";
 import { useTrips,defaultTrip } from "./trip-data";
@@ -31,6 +31,8 @@ interface Expense {
   updated_at: string;
   trip_id: string | null;
   is_fixed: boolean;
+  recurring_item_id: string | null;
+  recurring_items?: {interval_months:number} | null;
 }
 
 function errorMessage(error: unknown) {
@@ -82,7 +84,7 @@ function DateChoice({timing,day,allowRecurring,apply}: {
 }
 
 async function getExpense(household: string, id: string) {
-  const result = await supabase.from("expenses").select("*").eq("household_id", household).eq("id", id).single();
+  const result = await supabase.from("expenses").select("*,recurring_items(interval_months)").eq("household_id", household).eq("id", id).single();
   if (result.error) throw result.error;
   return result.data as Expense;
 }
@@ -118,6 +120,8 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
   const pickedTrip = availableTrips.find(t=>t.id===tripId);
   const [sheet, setSheet] = useState<"currency" | "date" | "trip" | null>(null);
   const [filter, setFilter] = useState("");
+  const deletion=useContext(DeletionContext)!;
+  const [askDelete,setAskDelete]=useState(false);
   const requestId = useRef<string>();
   const displayedAmount = keypadDisplay(amount, currency);
   const amountValue = Number(displayedAmount);
@@ -205,6 +209,8 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
     <div className="ee-form">
       <header className="ee-heading"><button className="ee-icon-btn" aria-label="Close expense form" onClick={() => navigate(original ? "/expenses" : "/")}><IconX size={20}/></button>
         <h1>{original ? "Edit expense" : "Add expense"}</h1><span/></header>
+      {original?.recurring_item_id && <div className="ee-title"><span><IconRepeat size={16}/> {frequency(original)}</span>
+        <button disabled={!!deletion.pendingDeletion} onClick={()=>setAskDelete(true)}>Delete</button></div>}
       <div className="ee-amount"><output aria-label="Amount">{displayedAmount}</output><button className="ee-currency" disabled={repeat} onClick={() => openSheet("currency")}>{currency}<IconChevronRight size={14}/></button></div>
       <div className="ee-slots" aria-label="Categories">
         {active.map(c => <button key={c.id} aria-pressed={c.id === categoryId} title={c.name} onClick={() => setCategory(c.id)}>
@@ -233,6 +239,9 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
       </div>
       <button className="ee-save" disabled={!canSave || save.isPending} onClick={() => save.mutate()}><IconCheck size={18}/>{save.isPending ? "Saving…" : repeat ? "Save recurring expense" : original ? "Save changes" : "Save expense"}</button>
     </div>
+    {askDelete && original && <DeleteChoices expense={original} close={()=>setAskDelete(false)} choose={scope=>{
+      deletion.schedule(original,scope);setAskDelete(false);navigate("/expenses");
+    }}/>}
     {sheet && <Sheet close={() => setSheet(null)} title={sheet === "currency" ? "Choose currency" : sheet === "trip" ? "Choose trip" : "Expense date"}>
       {sheet === "trip" ? <div className="ee-options"><button onClick={()=>{setTrip("");setSheet(null)}}>No trip</button>
         {availableTrips.map(t=><button key={t.id} onClick={()=>{setTrip(t.id);setSheet(null)}}>{t.name}{t.id===tripId&&<IconCheck size={16}/>}</button>)}
@@ -253,7 +262,7 @@ function useExpenses(household: string, month: string, page: number, pending: bo
   return useQuery({
     queryKey: ["expenses", household, month, page, pending, category],
     queryFn: async () => {
-      let query = supabase.from("expenses").select("*", { count: "exact" }).eq("household_id", household);
+      let query = supabase.from("expenses").select("*,recurring_items(interval_months)", { count: "exact" }).eq("household_id", household);
       if (pending) query = query.eq("sgd_confirmed", false);
       else query = query.gte("spent_on", month).lt("spent_on", shiftMonth(month, 1));
       if (category) query = query.eq("category_id", category);
@@ -274,14 +283,39 @@ function Pagination({ page, total, update }: { page: number; total: number; upda
   </nav>;
 }
 
+type Scope = "one" | "future" | "including";
+type PendingDeletion = Expense & {scope:Scope};
+function frequency(expense:Expense) {
+  const interval=expense.recurring_items?.interval_months;
+  if(interval===1)return "Every month";
+  if(interval===12)return "Every year";
+  return interval ? "Every "+interval+" months" : "Recurring";
+}
+function DeleteChoices({expense,close,choose}:{expense:Expense;close:()=>void;choose:(scope:Scope)=>void}) {
+  return <Sheet title={expense.recurring_item_id ? "Delete recurring expense?" : "Delete expense?"} close={close}>
+    <p>{expense.description || "Expense"} · {formatMoney(expense.amount_sgd)} · {dateLabel(expense.spent_on,{day:"numeric",month:"short",year:"numeric"})}</p>
+    {expense.recurring_item_id ? <div className="ee-options">
+      <button className="ee-remove" onClick={()=>choose("one")}>Only this entry</button>
+      <button className="ee-remove" onClick={()=>choose("future")}>Only future entries</button>
+      <button className="ee-remove" onClick={()=>choose("including")}>This and future entries</button>
+    </div> : <button className="ee-remove" onClick={()=>choose("one")}>Delete expense</button>}
+  </Sheet>;
+}
+function pendingRemoval(row:Expense,pending:PendingDeletion|null){
+  if(!pending)return false;
+  if(pending.scope==="one")return row.id===pending.id;
+  if(row.recurring_item_id!==pending.recurring_item_id)return false;
+  return pending.scope==="future" ? row.spent_on>pending.spent_on : row.spent_on>=pending.spent_on;
+}
+
 const DeletionContext = createContext<{
-  pendingDeletion: Expense | null;
-  schedule: (expense: Expense) => void;
+  pendingDeletion: PendingDeletion | null;
+  schedule: (expense: Expense,scope:Scope) => void;
 } | null>(null);
 
 // The undo window belongs to the household session, not the current route.
 export function ExpenseDeletionProvider({children}: {children: ReactNode}) {
-  const [pendingDeletion, setPending] = useState<Expense | null>(null);
+  const [pendingDeletion, setPending] = useState<PendingDeletion | null>(null);
   const [committing, setCommitting] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const client = useQueryClient();
@@ -292,11 +326,16 @@ export function ExpenseDeletionProvider({children}: {children: ReactNode}) {
       inFlight.current = true;
       setCommitting(true);
       try {
+        if(pendingDeletion.recurring_item_id){
+          const result=await supabase.rpc("delete_recurring_entry",{p_entry:pendingDeletion.id,p_version:pendingDeletion.updated_at,p_scope:pendingDeletion.scope});
+          if(result.error)throw result.error;
+        } else {
         const result = await supabase.from("expenses").delete()
           .eq("household_id", pendingDeletion.household_id).eq("id", pendingDeletion.id)
           .eq("updated_at", pendingDeletion.updated_at).select("id").maybeSingle();
         if (result.error) throw result.error;
         if (!result.data) throw new Error("This entry changed. Refresh and try again.");
+        }
       } catch (failure) {
         setError(failure);
       } finally {
@@ -308,9 +347,9 @@ export function ExpenseDeletionProvider({children}: {children: ReactNode}) {
     }, 6000);
     return () => window.clearTimeout(timer);
   }, [pendingDeletion, client]);
-  return <DeletionContext.Provider value={{pendingDeletion, schedule: expense => {
+  return <DeletionContext.Provider value={{pendingDeletion, schedule: (expense,scope) => {
     setError(null);
-    setPending(current => current ?? expense);
+    setPending(current => current ?? {...expense,scope});
   }}}>
     {children}
     {pendingDeletion && <div role="status" className="ee-toast">
@@ -336,7 +375,7 @@ function ListBody({ household, month, members, categories, category }: EntryProp
   useEffect(() => {
     if (query.data && page > 0 && !query.data.rows.length) setPage(page - 1);
   }, [page, query.data]);
-  const rows = (query.data?.rows || []).filter(e => e.id !== pendingDeletion?.id);
+  const rows = (query.data?.rows || []).filter(e => !pendingRemoval(e,pendingDeletion));
   const groups = new Map<string, Expense[]>();
   for (const e of rows) {
     const previous = groups.get(e.spent_on) || [];
@@ -359,16 +398,14 @@ function ListBody({ household, month, members, categories, category }: EntryProp
         return <div className="ee-row" key={e.id}>
           <button className="ee-row-main" onClick={() => navigate("/add?edit=" + e.id)}><CategoryGlyph category={cat}/>
             <span><strong>{e.description || cat?.name}</strong><small>{cat?.name} · {person}</small>
-              {(e.trip_id || e.is_fixed || !e.sgd_confirmed) && <span className="ee-badges">{e.trip_id && <i>Trip</i>}{e.is_fixed && <i>Fixed</i>}{!e.sgd_confirmed && <i>To confirm</i>}</span>}
+              {(e.trip_id || e.is_fixed || !e.sgd_confirmed) && <span className="ee-badges">{e.trip_id && <i>Trip</i>}{e.is_fixed && <i><IconRepeat size={13} aria-hidden="true"/> {frequency(e)}</i>}{!e.sgd_confirmed && <i>To confirm</i>}</span>}
             </span><b>{formatMoney(e.amount_sgd)}</b></button>
           <button className="ee-icon-btn" aria-label={"Delete " + (e.description || cat?.name)} disabled={!!pendingDeletion} onClick={() => setDeleting(e)}><IconTrash size={17}/></button>
         </div>;
       })}</div></section>)}
     <Pagination page={page} total={query.data?.total || 0} update={setPage}/>
-    {deleting && <Sheet title="Delete expense?" close={() => setDeleting(null)}>
-      <p>{deleting.description || "Expense"} · {formatMoney(deleting.amount_sgd)}</p>
-      <button className="ee-remove" onClick={() => { schedule(deleting); setDeleting(null); }}>Delete expense</button>
-    </Sheet>}
+    {deleting && <DeleteChoices expense={deleting} close={()=>setDeleting(null)}
+      choose={scope=>{schedule(deleting,scope);setDeleting(null)}}/>}
 
   </section>;
 }
