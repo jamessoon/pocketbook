@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('scopes report statistics, recipients and retryable report leases',async()=>{
+    await database.exec(readFileSync(new URL('./monthly_reports.sql',import.meta.url),'utf8'));
+  });
   it('aggregates scoped history with separate trip, recurring and scheduled amounts',async()=>{
     await database.exec(readFileSync(new URL('./spending_history.sql',import.meta.url),'utf8'));
   });
