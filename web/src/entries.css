@@ -1,0 +1,82 @@
+.ee-quick, .ee-page, .ee-sheet { color: var(--text); }
+.ee-quick { max-width: 480px; margin: 0 auto; }
+.ee-form { display: grid; gap: 6px; padding: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 18px; }
+.ee-heading, .ee-title, .ee-day header, .ee-confirm>div, .ee-pages, .ee-confirm form, .ee-sheet header, .ee-toast, .ee-fx>div { display: flex; align-items: center; gap: 10px; }
+.ee-heading { display: grid; grid-template-columns: 44px 1fr 44px; text-align: center; }
+.ee-heading h1 { font-size: 20px; letter-spacing: -.035em; }
+.ee-icon-btn { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; padding: 0; color: var(--muted); }
+.ee-heading .ee-icon-btn:hover, .ee-row .ee-icon-btn:hover { background: var(--tint); }
+.ee-amount { display: flex; justify-content: center; align-items: center; gap: 12px; min-height: 56px; }
+.ee-amount output { overflow-wrap: anywhere; font-size: clamp(27px, 7vw, 38px); font-weight: 650; line-height: 1; letter-spacing: -.06em; }
+.ee-currency, .ee-details button, .ee-filter, .ee-back, .ee-action, .ee-save { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.ee-currency, .ee-details button { color: var(--accent); font-weight: 600; font-size: 13px; }
+.ee-slots { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 3px; }
+.ee-slots button { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 49px; min-width: 0; gap: 2px; padding: 2px; border-color: transparent; font-size: 11px; color: var(--muted); line-height: 1.1; }
+.ee-slots button>span:last-child { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ee-slots button[aria-pressed="true"] { color: var(--accent); background: var(--tint); border-color: var(--accent); font-weight: 650; }
+.ee-glyph { display: inline-grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: color-mix(in srgb, var(--entry-color) 12%,var(--surface)); color: color-mix(in srgb, var(--entry-color) 72%, var(--text)); }
+.ee-slots .ee-glyph { width: 22px; height: 22px; background: none; }
+.ee-description input, .ee-confirm input, .ee-sheet input { display: block; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 16px; }
+.ee-suggestions { display: flex; align-items: center; gap: 3px; }
+.ee-suggestions button { min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--accent); border: none; background: transparent; text-decoration: underline; text-underline-offset: 3px; }
+.ee-details { display: flex; gap: 7px; }
+.ee-fx { background: var(--notice); border-radius: 8px; padding: 5px 8px; }
+.ee-fx>div { justify-content: space-between; font-size: 12px; font-weight: 650; }
+.ee-fx small { display: block; font-size: 11px; line-height: 1.25; }
+.ee-fx a { font-size: 10px; font-weight: 450; }
+.ee-fx button { padding: 0; color: var(--danger); border: none; background: transparent; }
+.ee-pad { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px; }
+.ee-pad button { display: grid; place-items: center; padding: 0; min-height: 48px; background: var(--bg); border-color: transparent; font-size: 21px; font-weight: 550; }
+.ee-pad button:active, .ee-options button:hover { background: var(--tint); }
+.ee-save, .ee-action { border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 650; min-height: 44px; }
+.ee-sheet { width: min(calc(100% - 24px), 440px); max-height: min(80dvh, 640px); border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: var(--surface); }
+.ee-sheet::backdrop { background: color-mix(in srgb, var(--text) 28%, transparent); }
+.ee-sheet header { justify-content: space-between; margin-bottom: 10px; }
+.ee-sheet h2, .ee-day h2 { margin: 0; }
+.ee-filter { border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; color: var(--muted); display: flex; }
+.ee-filter input { border: none; padding-left: 0; }
+.ee-options { display: grid; margin-top: 8px; }
+.ee-options button { display: flex; align-items: center; gap: 10px; text-align: left; border: none; }
+.ee-options button>svg:last-child { margin-left: auto; }
+.ee-title { justify-content: space-between; margin-bottom: 24px; }
+.ee-title p, .ee-day header span, .ee-empty p { color: var(--muted); }
+.ee-title p, .ee-empty p { margin-bottom: 4px; }
+.ee-day { margin: 22px 0; }
+.ee-day header { justify-content: space-between; margin-bottom: 7px; }
+.ee-day header h2 { font-size: 16px; }
+.ee-day header span { font-size: 12px; }
+.ee-list, .ee-empty, .ee-confirm { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.ee-empty { padding: 24px; }
+.ee-empty h2 { margin: 0 0 4px; }
+.ee-row { display: flex; align-items: center; padding: 5px 7px; }
+.ee-row+.ee-row { border-top: 1px solid var(--line); }
+.ee-row-main { display: flex; align-items: center; flex: 1; min-width: 0; gap: 10px; text-align: left; border: none; }
+.ee-row-main>span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ee-row-main strong, .ee-row-main small, .ee-confirm small { display: block; }
+.ee-row-main strong, .ee-row-main b { font-weight: 650; }
+.ee-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.ee-badges i { font-size: 11px; font-style: normal; border-radius: 4px; color: var(--warm); background: var(--notice); padding: 1px 5px; }
+.ee-pages { justify-content: center; margin: 12px 0; }
+.ee-pages span { color: var(--muted); }
+.ee-back { min-height: 44px; padding: 0; background: transparent; border: none; color: var(--accent); }
+.ee-confirm-list { display: grid; gap: 12px; }
+.ee-confirm { padding: 16px; }
+.ee-confirm p { color: var(--muted); margin: 12px 0; }
+.ee-confirm label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.ee-confirm form { align-items: end; }
+.ee-toast { position: fixed; justify-content: space-between; bottom: calc(74px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 5; width: max-content; max-width: 95vw; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 6px 12px; font-size: 14px; }
+.ee-toast button { color: var(--accent); border: none; font-weight: 650; }
+.ee-remove, .ee-error { color: var(--danger); }
+.ee-error { margin: 0; font-size: 13px; }
+@media(max-width:720px) {
+  .content:has(.ee-quick) { padding: 0; }
+  .ee-quick { background: var(--surface); min-height: 100dvh; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  .ee-form { border: none; border-radius: 0; padding: 8px 12px; }
+}
+@media(max-height:720px) and (max-width:720px) {
+  .ee-form { gap: 3px; padding: 2px 10px; }
+  .ee-pad { gap: 2px; }
+  .ee-pad button, .ee-slots button { min-height: 44px; height: 44px; }
+  .ee-amount { min-height: 44px; }
+}
+
