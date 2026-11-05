@@ -13,6 +13,8 @@ try{
    const errors=[]
    let housePosted=false
    let bill=null
+   let report=null
+   let recipients=[]
    page.on('pageerror',e=>errors.push(e.message))
    await page.addInitScript(()=>{
     const user={id:'user1',aud:'authenticated',role:'authenticated',email:'test@example.invalid',app_metadata:{},user_metadata:{}}
@@ -21,6 +23,18 @@ try{
    await page.route('https://hh-test.supabase.co/**',async route=>{
     const url=new URL(route.request().url())
     const table=url.pathname.split('/').pop()
+    if(table==='reports')return route.fulfill({json:report?[report]:[]})
+    if(table==='report_recipients'){
+      const method=route.request().method()
+      if(method==='POST')recipients.push({email:route.request().postDataJSON().email})
+      if(method==='DELETE')recipients=recipients.filter(r=>r.email!==url.searchParams.get('email').slice(3))
+      return route.fulfill({json:method==='GET'?recipients:null})
+    }
+    if(table==='monthly-report'){
+      report={id:'rep1',month:'2025-05-01',ai_text:'Monthly test analysis.',sent_at:'2025-06-01',stats:{
+        total:100,budget:2000,fixed:80,daily:20,previous:90,days_over:1,unconfirmed:0,categories:[],trips:[],largest:[]}}
+      return route.fulfill({json:{status:'sent'}})
+    }
     if(table==='spending_history'){
       const {p_start,p_category}=route.request().postDataJSON()
       const date=new Date(p_start+'T12:00:00Z')
@@ -102,6 +116,17 @@ try{
    assert.ok(await page.getByRole('link',{name:/expense to confirm/}).isVisible())
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
    await page.getByRole('link',{name:'Settings',exact:true}).filter({visible:true}).click()
+   await page.getByLabel('Recipient email').fill('test@example.test')
+   await page.getByRole('button',{name:'Add recipient'}).click()
+   await page.getByLabel('Remove test@example.test').waitFor()
+   await page.getByRole('link',{name:'Reports',exact:true}).click()
+   await page.getByRole('heading',{name:'No reports yet'}).waitFor()
+   await page.getByRole('button',{name:'Send last month’s report now'}).click()
+   await page.getByText('Monthly test analysis.').waitFor()
+   assert.equal(await page.locator('.hero-num').innerText(),'$100.00')
+   await page.getByRole('link',{name:'Recipients'}).click()
+   await page.getByLabel('Remove test@example.test').click()
+   await page.getByLabel('Remove test@example.test').waitFor({state:'detached'})
    await page.getByRole('button',{name:'New bill'}).click()
    await page.getByLabel('Bill name').fill('Internet')
    await page.getByLabel('Category',{exact:true}).selectOption('food')

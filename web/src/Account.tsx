@@ -5,6 +5,7 @@ import {
   IconDeviceDesktop, IconEdit, IconLogout, IconMoon, IconPlus, IconSun,
   IconWallet, IconX,
 } from '@tabler/icons-react'
+import {ReportSettings} from './Reports'
 import {Recurring} from './Recurring'
 import { supabase } from './client'
 import { CategoryIcon, iconChoices, palette } from './icons'
@@ -271,6 +272,7 @@ export function Settings({ household, members, categories }: { household: Househ
           <button className="account-text" disabled={action.busy} onClick={() => archive(row)}>Restore</button></div>
       )}</details>}
     </div>
+    <ReportSettings key={'report-'+household.id} household={household}/>
     <WidgetSettings key={household.id}/>
     <div className="account-section"><h2>Account</h2>
 

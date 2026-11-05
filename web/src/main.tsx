@@ -7,6 +7,7 @@ import {IconHome,IconListDetails,IconSettings,IconLuggage,IconPlus,IconWallet} f
 import {configured,supabase} from './client'
 import {Auth,Settings} from './Account'
 import {QuickAdd,ExpenseList,Confirm,ExpenseDeletionProvider} from './Entries'
+import {Reports} from './Reports'
 import {Trips} from './Trips'
 import {Dashboard} from './Dashboard'
 import {today} from './dates'
@@ -65,7 +66,7 @@ function App() {
     {location.pathname!=='/add' && <header className="phone-header"><nav aria-label="Main navigation">{nav.map(({to,name})=><NavLink to={to} end key={to} className={({isActive})=>isActive || (to==='/' && location.pathname==='/year') ? 'active' : undefined}>{name}</NavLink>)}</nav></header>}
     <main className="content"><Routes>
     <Route path="/" element={<Dashboard {...props} onMonth={setMonth}/>}/>
-    <Route path="/recurring" element={<Navigate replace to={'/settings'+location.search+'#recurring'}/>}/><Route path="/trips" element={<Trips {...props}/>}/><Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
+    <Route path="/recurring" element={<Navigate replace to={'/settings'+location.search+'#recurring'}/>}/><Route path="/reports" element={<Reports household={data.household}/>}/><Route path="/trips" element={<Trips {...props}/>}/><Route path="/expenses" element={<ExpenseList {...props}/>}/><Route path="/confirm" element={<Confirm {...props}/>}/>
     {["/year","/category"].map(path=><Route key={path} path={path} element={<React.Suspense fallback={<p>Loading history…</p>}><History {...props}/></React.Suspense>}/>)}
     <Route path="/add" element={<QuickAdd {...props}/>}/><Route path="/settings" element={<Settings {...props}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/></Routes></main>
