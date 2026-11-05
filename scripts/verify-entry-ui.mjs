@@ -25,6 +25,7 @@ try {
     const rows = [expense("30000000-0000-4000-8000-000000000001", categories[0], "Shopping only"),
       expense("30000000-0000-4000-8000-000000000002", categories[1], "Phone credit")];
     const trips = [];
+    const schedules = [];
     const queries = [];
     let allowRate = true;
     await page.addInitScript(({ session, theme }) => {
@@ -37,6 +38,10 @@ try {
       if (path === "/auth/v1/user") return json(user);
       if (path.endsWith("/members")) return json([member]);
       if (path.endsWith("/households")) return json(household);
+      if (path.endsWith("/recurring_items")) {
+        if(req.method()==="POST") { schedules.push(req.postDataJSON());return json(null,201); }
+        return json(schedules);
+      }
       if (path.endsWith("/trips")) {
         if (req.method()==="POST") {
           const trip={...req.postDataJSON(),id:"41000000-0000-4000-8000-000000000001"};
@@ -154,6 +159,24 @@ try {
     await page.getByLabel("Select trip").click();
     await page.getByRole("button",{name:"No trip",exact:true}).click();
     await expect(page.getByLabel("Select trip")).toHaveText("No trip");
+    await page.getByRole("button",{name:"Food & drink",exact:true}).click();
+    await page.getByRole("button",{name:"5",exact:true}).click();
+    await page.getByRole("button",{name:"Today",exact:true}).click();
+    await page.getByRole("button",{name:"Recurring",exact:true}).click();
+    await page.getByLabel("From",{exact:true}).fill("2027-01-31");
+    await page.getByLabel("To",{exact:true}).fill("2027-02-28");
+    await page.getByRole("button",{name:"Done",exact:true}).click();
+    await page.getByRole("button",{name:"Save recurring expense"}).click();
+    await page.getByRole("heading",{name:"Recurring costs"}).waitFor();
+    assert.equal(schedules.length,1);
+    assert.equal(schedules[0].ends_on,"2027-02-28");
+    assert.equal(schedules[0].due_day,31);
+    assert.equal(schedules[0].amount,0.05);
+    await page.goto(baseURL+"/add");
+    await page.getByRole("button",{name:"Today",exact:true}).click();
+    await page.getByLabel("Date",{exact:true}).fill("2027-01-15");
+    await page.getByRole("button",{name:"Done",exact:true}).click();
+    await expect(page.getByRole("button",{name:"Save expense"})).toBeVisible();
     assert.deepEqual(errors, []);
     console.log(theme + ": entry screens and CRUD passed; quick add " + overflow + ", Save bottom " + Math.round(rect.y + rect.height) + "px.");
     await context.close();

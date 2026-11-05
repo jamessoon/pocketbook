@@ -80,3 +80,8 @@
   .ee-amount { min-height: 44px; }
 }
 
+
+.date-choice,.date-choice label{display:grid;gap:8px}
+.date-choice{gap:14px}
+.date-modes{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.date-modes button[aria-pressed="true"]{background:var(--tint);color:var(--accent);border-color:var(--accent)}

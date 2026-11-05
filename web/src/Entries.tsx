@@ -59,6 +59,28 @@ function Sheet({ title, close, children }: { title: string; close: () => void; c
   </dialog>;
 }
 
+type ExpenseTiming = {date:string; end:string|null};
+
+function DateChoice({timing,day,allowRecurring,apply}: {
+  timing:ExpenseTiming; day:string; allowRecurring:boolean; apply:(value:ExpenseTiming)=>void
+}) {
+  const [repeat,setRepeat]=useState(timing.end!==null);
+  const [from,setFrom]=useState(timing.date || day);
+  const [to,setTo]=useState(timing.end || '');
+  return <form className="date-choice" onSubmit={event=>{
+    event.preventDefault(); apply({date:from,end:repeat ? to : null});
+  }}>
+    {allowRecurring && <div className="date-modes">
+      <button type="button" aria-pressed={!repeat} onClick={()=>setRepeat(false)}>One time</button>
+      <button type="button" aria-pressed={repeat} onClick={()=>setRepeat(true)}>Recurring</button>
+    </div>}
+    <label>{repeat?'From':'Date'}<input type="date" required value={from} onChange={e=>setFrom(e.target.value)}/></label>
+    {repeat && <><label>To<input type="date" required min={from} value={to} onChange={e=>setTo(e.target.value)}/></label>
+      <small>Repeats monthly as a household bill, including both dates when due.</small></>}
+    <button type="submit" className="ee-action">Done</button>
+  </form>;
+}
+
 async function getExpense(household: string, id: string) {
   const result = await supabase.from("expenses").select("*").eq("household_id", household).eq("id", id).single();
   if (result.error) throw result.error;
@@ -86,7 +108,9 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
   const [amount, setAmount] = useState(() => keypadInput(Number(original?.original_amount || 0), original?.original_currency || "SGD"));
   const [currency, setCurrency] = useState(original?.original_currency || "SGD");
   const [description, setDescription] = useState(original?.description || "");
-  const [date, setDate] = useState(original?.spent_on || day);
+  const [timing,setTiming] = useState<ExpenseTiming>({date:original?.spent_on || day,end:null});
+  const {date,end} = timing;
+  const repeat = end !== null;
   const trips = useTrips(household.id);
   const [selectedTrip,setTrip] = useState<string | undefined>(original ? original.trip_id || "" : undefined);
   const availableTrips = (trips.data || []).filter(t=>!t.archived || t.id===original?.trip_id);
@@ -126,9 +150,25 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
   const sgdAmount = sameMoney ? Number(original.amount_sgd) : asCents(foreign ? amountValue * Number(rate) : amountValue);
   const tripUnavailable = !trips.isPending && ((!!tripId && !pickedTrip) || (!!requestedTrip && selectedTrip === undefined && !pickedTrip));
   const canSave = !tripUnavailable && !trips.isPending && !trips.error && !!picked && amountValue > 0 && Number.isFinite(sgdAmount) && sgdAmount > 0 && !!date && (!foreign || sameMoney || !!rate);
+  const scheduleRequest = useRef<string>();
   const save = useMutation({
     mutationFn: async () => {
       if (!canSave) throw new Error("Choose a category and a valid amount.");
+      if(repeat){
+        if(original || foreign || tripId || end < date) throw new Error("Choose a valid recurring SGD date range.");
+        scheduleRequest.current ??= crypto.randomUUID();
+        const fields={household_id:household.id,category_id:categoryId,name:(description.trim() || picked!.name).slice(0,120),
+          amount:sgdAmount,amount_type:"fixed",interval_months:1,start_month:date.slice(0,7)+"-01",
+          due_day:Number(date.slice(-2)),ends_on:end};
+        const result=await supabase.from("recurring_items").insert({...fields,id:scheduleRequest.current});
+        if(result.error){
+          if(result.error.code!=="23505") throw result.error;
+          const previous=await supabase.from("recurring_items").select("*").eq("household_id",household.id).eq("id",scheduleRequest.current).single();
+          if(previous.error || Object.entries(fields).some(([key,value])=>String(previous.data[key])!==String(value)))
+            throw new Error("Your earlier save may have reached the household. Check Recurring costs before retrying.");
+        }
+        return;
+      }
       const fields = {
         trip_id: tripId || null, category_id: categoryId, description: description.trim(), spent_on: date, original_amount: amountValue,
         original_currency: currency, amount_sgd: sgdAmount, fx_rate_estimate: foreign ? rate || null : null,
@@ -157,7 +197,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
     onSuccess: async () => {
       rememberCurrency(household.id, currency);
       await client.invalidateQueries();
-      navigate(tripId ? "/trips?id="+tripId : original ? "/expenses" : "/", { replace: true });
+      navigate(repeat ? "/recurring" : tripId ? "/trips?id="+tripId : original ? "/expenses" : "/", { replace: true });
     },
   });
   function openSheet(next: typeof sheet) { setFilter(""); setSheet(next); }
@@ -165,7 +205,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
     <div className="ee-form">
       <header className="ee-heading"><button className="ee-icon-btn" aria-label="Close expense form" onClick={() => navigate(original ? "/expenses" : "/")}><IconX size={20}/></button>
         <h1>{original ? "Edit expense" : "Add expense"}</h1><span/></header>
-      <div className="ee-amount"><output aria-label="Amount">{displayedAmount}</output><button className="ee-currency" onClick={() => openSheet("currency")}>{currency}<IconChevronRight size={14}/></button></div>
+      <div className="ee-amount"><output aria-label="Amount">{displayedAmount}</output><button className="ee-currency" disabled={repeat} onClick={() => openSheet("currency")}>{currency}<IconChevronRight size={14}/></button></div>
       <div className="ee-slots" aria-label="Categories">
         {active.map(c => <button key={c.id} aria-pressed={c.id === categoryId} title={c.name} onClick={() => setCategory(c.id)}>
           <CategoryGlyph category={c}/><span>{c.name}</span></button>)}
@@ -174,8 +214,8 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
         {!!suggestions.data?.length && <div className="ee-suggestions" aria-label="Suggested descriptions">{suggestions.data.slice(0, 3).map(value =>
           <button key={value} title={value} onClick={() => setDescription(value)}>{value}</button>)}</div>}
       </div>
-      <div className="ee-details"><button onClick={() => openSheet("date")}><IconCalendar size={16}/>{date === day ? "Today" : dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</button>
-        {!original?.is_fixed && <button aria-label="Select trip" onClick={()=>openSheet("trip")}>{pickedTrip?.name || "No trip"}</button>}
+      <div className="ee-details"><button onClick={() => openSheet("date")}><IconCalendar size={16}/>{repeat ? "Monthly" : date === day ? "Today" : dateLabel(date, { day: "numeric", month: "short", year: "numeric" })}</button>
+        {!repeat && !original?.is_fixed && <button aria-label="Select trip" onClick={()=>openSheet("trip")}>{pickedTrip?.name || "No trip"}</button>}
         {pickedTrip && <small>Trip spending is outside the monthly budget.</small>}
       </div>
       {tripUnavailable && <p role="alert">This trip is unavailable. Choose another trip or select No trip.</p>}
@@ -191,12 +231,13 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
         {["1","2","3","4","5","6","7","8","9",".","0","delete"].map(key =>
           <button key={key} aria-label={key === "delete" ? "Backspace" : key} onClick={() => setAmount(value => pressKey(value, key, currency))}>{key === "delete" ? <IconBackspace size={23}/> : key}</button>)}
       </div>
-      <button className="ee-save" disabled={!canSave || save.isPending} onClick={() => save.mutate()}><IconCheck size={18}/>{save.isPending ? "Saving…" : original ? "Save changes" : "Save expense"}</button>
+      <button className="ee-save" disabled={!canSave || save.isPending} onClick={() => save.mutate()}><IconCheck size={18}/>{save.isPending ? "Saving…" : repeat ? "Save recurring expense" : original ? "Save changes" : "Save expense"}</button>
     </div>
     {sheet && <Sheet close={() => setSheet(null)} title={sheet === "currency" ? "Choose currency" : sheet === "trip" ? "Choose trip" : "Expense date"}>
       {sheet === "trip" ? <div className="ee-options"><button onClick={()=>{setTrip("");setSheet(null)}}>No trip</button>
         {availableTrips.map(t=><button key={t.id} onClick={()=>{setTrip(t.id);setSheet(null)}}>{t.name}{t.id===tripId&&<IconCheck size={16}/>}</button>)}
-      </div> : sheet === "date" ? <label>Date<input type="date" aria-label="Expense date" value={date} onChange={e => { if (e.target.value) { setDate(e.target.value); setSheet(null); } }}/></label> : <>
+      </div> : sheet === "date" ? <DateChoice timing={timing} day={day} allowRecurring={!original && !foreign}
+        apply={value=>{if(value.end!==null)setTrip("");setTiming(value);setSheet(null)}}/> : <>
         <label className="ee-filter"><IconSearch size={18}/><input placeholder="Search" aria-label="Search options" value={filter} onChange={e => setFilter(e.target.value)}/></label>
         <div className="ee-options">
           {currencyOrder(household.id).filter(c => c.includes(filter.trim().toUpperCase())).map(c =>
