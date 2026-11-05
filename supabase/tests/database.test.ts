@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('honors exact From and To dates for monthly posting and reservations',async()=>{
+    await database.exec(readFileSync(new URL('./recurring_ranges.sql',import.meta.url),'utf8'));
+  });
   it('posts recurring bills on Singapore dates, catches up and avoids duplicates', async () => {
     await database.exec(readFileSync(new URL('./recurring.sql', import.meta.url), 'utf8'));
   });
@@ -73,9 +76,9 @@ describe.each(fixtures)('$name', fixture => {
         const id = randomUUID();
         recurringKeys.set(item.id,id);
         await tx.query(`insert into public.recurring_items
-          (id,household_id,name,category_id,amount,amount_type,interval_months,due_day,start_month,active)
-          values($1,$2,$3,$4,$5,'variable',$6,$7,$8,$9)`,
-          [id,household,item.id,category,item.amount,item.interval,item.day,item.start,item.active !== false]);
+          (id,household_id,name,category_id,amount,amount_type,interval_months,due_day,start_month,active,ends_on)
+          values($1,$2,$3,$4,$5,'variable',$6,$7,$8,$9,$10)`,
+          [id,household,item.id,category,item.amount,item.interval,item.day,item.start,item.active !== false,item.end ?? null]);
       }
       for (const entry of fixture.expenses) {
         await tx.query(`insert into public.expenses
