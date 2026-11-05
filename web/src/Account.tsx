@@ -8,6 +8,7 @@ import {
 import { supabase } from './client'
 import { CategoryIcon, iconChoices, palette } from './icons'
 import type { Category, Household, Member } from './types'
+import widgetTemplate from '../../widget/HHExpense.js?raw'
 import './account.css'
 
 function message(error: unknown) {
@@ -156,6 +157,44 @@ function CategoryEditor({ category, household, categories, close }: {
   </dialog>
 }
 
+function WidgetSettings() {
+  const [token,setToken] = useState('')
+  const [confirmRotate,setConfirmRotate] = useState(false)
+  const action = useAction()
+  function load(rotate = false) {
+    void action.run(async () => {
+      const {data,error} = await supabase.rpc(rotate ? 'rotate_widget_token' : 'get_widget_token')
+      if(error) throw error
+      setToken(data)
+      setConfirmRotate(false)
+    }, rotate ? 'Token replaced. Copy the updated script to each iPhone.' : '')
+  }
+  function copyScript() {
+    const config: Record<string,string> = {
+      SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+      SUPABASE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
+      WIDGET_TOKEN: token,
+      APP_URL: location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        ? 'https://hhexpense.vercel.app/' : location.origin + '/',
+    }
+    const script = widgetTemplate.replace(/"__(SUPABASE_URL|SUPABASE_KEY|WIDGET_TOKEN|APP_URL)__"/g,
+      (_,key: string)=>JSON.stringify(config[key]))
+    return navigator.clipboard.writeText(script)
+  }
+  return <section className="account-section"><h2>iPhone widget</h2>
+    {!token ? <button onClick={()=>load()} disabled={action.busy}>Set up Scriptable</button> : <>
+      <p>Paste this household’s script into Scriptable and name it HHExpense. Keep it private.</p>
+      <div className="account-row"><button onClick={()=>action.run(copyScript,'Widget script copied.')}>Copy widget script</button>
+        <button onClick={()=>action.run(()=>navigator.clipboard.writeText(token),'Widget token copied.')}>Copy token</button></div>
+      {confirmRotate ? <div><p>Replace the token for all household widgets? Each iPhone will need a fresh copy of the script.</p>
+        <button disabled={action.busy} onClick={()=>load(true)}>Replace token</button>
+        <button onClick={()=>setConfirmRotate(false)}>Cancel</button></div>
+        : <button className="account-text" onClick={()=>setConfirmRotate(true)}>Rotate token</button>}
+    </>}
+    <Status {...action}/>
+  </section>
+}
+
 export function Settings({ household, members, categories }: { household: Household; members: Member[]; categories: Category[] }) {
   const [name, setName] = useState(household.name)
   const [budget, setBudget] = useState(String(household.monthly_budget))
@@ -230,6 +269,7 @@ export function Settings({ household, members, categories }: { household: Househ
           <button className="account-text" disabled={action.busy} onClick={() => archive(row)}>Restore</button></div>
       )}</details>}
     </div>
+    <WidgetSettings key={household.id}/>
     <div className="account-section"><h2>Account</h2>
 
       <button className="account-text" disabled={action.busy} onClick={() => action.run(async () => {

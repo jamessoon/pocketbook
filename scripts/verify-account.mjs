@@ -25,6 +25,10 @@ async function check(theme) {
   const context = await browser.newContext({ viewport: { width: 375, height: 667 }, colorScheme: theme })
   const page = await context.newPage()
   await page.addInitScript(theme => localStorage.setItem('theme', theme), theme)
+  // Keep copied fixture credentials inside the isolated page.
+  await page.addInitScript(() => Object.defineProperty(navigator,'clipboard',{value:{
+    writeText: async text => { window.fixtureClipboard=text }
+  }}))
   let joined = false
   let categories = [sample]
   const rpcCalls = []
@@ -37,6 +41,8 @@ async function check(theme) {
     const end = url.pathname.split('/').at(-1)
     let data
     if (end === 'token' || end === 'signup') data = session
+    else if (end === 'get_widget_token') data = 'a'.repeat(64)
+    else if (end === 'rotate_widget_token') data = 'b'.repeat(64)
     else if (end === 'user') data = person
     else if (end === 'logout') data = {}
     else if (end === 'members') data = url.searchParams.get('select') === 'household_id' ? (joined ? member : null) : [member]
@@ -95,6 +101,16 @@ async function check(theme) {
   await page.getByRole('button', { name: 'Companion', exact: true }).waitFor()
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme)
+  await page.getByRole('button',{name:'Set up Scriptable'}).click()
+  await page.getByRole('button',{name:'Copy widget script'}).click()
+  const copied = await page.evaluate(()=>window.fixtureClipboard)
+  assert.ok(copied.includes('const WIDGET_TOKEN = "'+'a'.repeat(64)+'"'))
+  assert.ok(copied.includes('https://hh-test.supabase.co') && !copied.includes('__SUPABASE_KEY__'))
+  await page.getByRole('button',{name:'Rotate token'}).click()
+  await page.getByRole('button',{name:'Replace token'}).click()
+  await page.getByText('Token replaced.',{exact:false}).waitFor()
+  await page.getByRole('button',{name:'Copy token'}).click()
+  assert.equal(await page.evaluate(()=>window.fixtureClipboard),'b'.repeat(64))
   assert.deepEqual(errors, [])
   await context.close()
   console.log(`${theme}: sign-in, onboarding, category add/search/reorder/archive/restore and viewport passed`)

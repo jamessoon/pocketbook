@@ -50,7 +50,7 @@ Review `git status` and check the environment files are ignored. Commit the Phas
 
 Open the deployed HTTPS URL in Safari, tap **Share → Add to Home Screen**, enable **Open as Web App** if offered, then tap **Add**. Open HHExpense from its Home Screen icon and sign in there. In Settings try System, Light and Dark. Quick add opens from a category’s plus button or **Add expense**. Tap keypad digits, pick a suggestion, and save. Check both members see the entry. Test a foreign-currency expense, edit it, confirm its statement amount and try deletion with Undo.
 
-The service worker caches the versioned app shell. Household records and API responses require a connection. The iPhone widget, recurring posting, trips and emailed reports are later phase deliveries.
+The service worker caches the versioned app shell. Household records and API responses require a connection. Recurring posting, trips and emailed reports are later phase deliveries.
 
 ## Repeat the Phase 1 checks
 
@@ -72,3 +72,15 @@ node scripts/verify-entry-ui.mjs
 ```
 
 These browser scripts intercept backend traffic and exercise light and dark modes. Use your real project for the two-member sign-in, exchange-rate and iPhone installation checks.
+
+## 6. Install the Scriptable widgets on iPhone
+
+1. For an existing Phase 1 project, run only `supabase/migrations/202611050004_widget.sql` in the Supabase SQL Editor, or use `supabase db push` with tracked migration history. No new Edge Function is required.
+2. Install Scriptable. In the deployed HHExpense app open **Settings → iPhone widget → Set up Scriptable → Copy widget script**. The copy includes your project URL, publishable key, widget token and app URL. Keep this copy within your household. The reusable template is `widget/HHExpense.js`.
+3. In Scriptable tap **+**, paste, name the script **HHExpense**, and run it once to preview. Allow the network connection and notifications when prompted.
+4. Add a small or medium **Scriptable** Home Screen widget. Edit it, select **HHExpense**, choose **Run Script** for interaction if offered, and set **Parameter** to **summary**. Medium also shows the last three day-to-day expenses. Tap to open the web app.
+5. Add a medium or large Scriptable widget with the same script and Parameter **add**. Tap a category, enter SGD (1025 means S$10.25, or type 10.25), pick a suggestion or type a description, and save. Expenses use today's household date and appear under **Household widget**.
+6. Both modes request refresh after 15 minutes; iOS schedules the actual redraw. Offline widgets show the last saved view marked **Stale**. Adding requires a connection. If save confirmation is lost, check Expenses before retrying.
+7. To revoke access choose **Settings → iPhone widget → Rotate token → Replace token**. Copy the new script to each iPhone. Old tokens immediately lose server access; cached views can remain visible until refreshed.
+
+On your iPhone compare the summary to Overview, save an expense from the add widget and check it in Expenses. Rotate the token and confirm the old installation loses access.
