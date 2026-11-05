@@ -40,10 +40,11 @@ try{
    await page.goto(origin)
    await page.getByRole('heading',{name:'Overview'}).waitFor()
    await page.getByText('Remaining this month').waitFor()
-   assert.equal(await page.locator('.ring strong').innerText(),'$112.00')
+   assert.equal(await page.locator('.ring strong').innerText(),'$192.00')
    const house=page.locator('.category-link').filter({hasText:'House'})
    assert.equal(await house.locator('strong').innerText(),'$80.00')
    assert.equal(await house.locator('small').innerText(),'Includes $80.00 scheduled')
+   assert.equal(await page.getByLabel('Quick add: House').locator('small').innerText(),'42%')
    housePosted=true
    await page.reload()
    await page.getByText('Remaining this month').waitFor()
