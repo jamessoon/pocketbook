@@ -2,7 +2,7 @@ import {useEffect,useRef,useState,type ReactNode} from 'react'
 import {Link,useLocation,useSearchParams} from 'react-router-dom'
 import {useQuery} from '@tanstack/react-query'
 import {Bar,BarChart,LabelList,CartesianGrid,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts'
-import {IconChevronLeft,IconChevronRight} from '@tabler/icons-react'
+import {IconCalendarMonth,IconChevronLeft,IconChevronRight} from '@tabler/icons-react'
 import {supabase} from './client'
 import {today,shiftMonth} from './dates'
 import {formatMoney,dateLabel} from './entry-helpers'
@@ -124,20 +124,23 @@ function YearHistory({props,year,change}:{props:EntryProps;year:number;change:(n
       {filtered && <button type="button" onClick={()=>setHidden(new Set())}>Show all</button>}
     </div>
   </div>
-  return <section className="history-page"><Link to="/">‹ Overview</Link><h1>Yearly overview</h1>
-    <div className="month-nav"><button aria-label="Previous year" disabled={year<=1900} onClick={()=>change(year-1)}><IconChevronLeft/></button><span>{year}</span><button aria-label="Next year" disabled={year>=2099} onClick={()=>change(year+1)}><IconChevronRight/></button></div>
+  return <section className="history-page year-page">
+    <header className="year-head"><div><small>{props.household.name}</small><h1>Yearly overview</h1></div>
+      <Link className="year-back" to="/" aria-label="‹ Overview"><IconChevronLeft size={16}/>Overview</Link></header>
+    <div className="year-toolbar"><div className="month-nav"><button aria-label="Previous year" disabled={year<=1900} onClick={()=>change(year-1)}><IconChevronLeft/></button><span><IconCalendarMonth/>{year}</span><button aria-label="Next year" disabled={year>=2099} onClick={()=>change(year+1)}><IconChevronRight/></button></div>
     <div className="history-controls"><label><input type="checkbox" checked={fixed} onChange={e=>setFixed(e.target.checked)}/>Include recurring costs</label>
-      <label><input type="checkbox" checked={trips} onChange={e=>setTrips(e.target.checked)}/>Include trips</label></div>
+      <label><input type="checkbox" checked={trips} onChange={e=>setTrips(e.target.checked)}/>Include trips</label></div></div>
     {query.isPending?<p>Loading year…</p>:query.error?<HistoryError error={query.error} retry={()=>query.refetch()}/>:<>
-      <section className="card"><h2>Monthly spending by category</h2><HistoryChart totals={totals} categories={props.categories} byCategory controls={legend}/></section>
-      <section className="card"><small>{filtered?'Selected categories total':'Year total'}</small><strong className="hero-num">{formatMoney(totals.total)}</strong>
-        <p className="muted">{formatMoney(totals.average)} monthly average across 12 months</p><dl>
+      <div className="cards year-cards"><section className="card"><h2>Monthly spending by category</h2><HistoryChart totals={totals} categories={props.categories} byCategory controls={legend}/></section>
+      <section className="card year-summary"><small>{filtered?'Selected categories total':'Year total'}</small><strong className="hero-num">{formatMoney(totals.total)}</strong>
+        <dl><div><dt>Monthly average</dt><dd>{formatMoney(totals.average)}</dd></div></dl><dl className="year-breakdown">
         <div><dt>Day-to-day</dt><dd>{formatMoney(totals.daily)}</dd></div>
         {fixed&&<><div><dt>Recurring · posted</dt><dd>{formatMoney(totals.fixed)}</dd></div><div><dt>Recurring · scheduled</dt><dd>{formatMoney(totals.scheduled)}</dd></div></>}
-        {trips&&<div><dt>Trips</dt><dd>{formatMoney(totals.trips)}</dd></div>}</dl></section>
-      <section className="card"><h2>Top categories</h2>{!totals.ranked.length&&<p>No spending for this selection.</p>}
-        {totals.ranked.map(({id,amount})=>{const cat=props.categories.find(c=>c.id===id)
-          return <div key={id} className="trip-row"><span style={{color:cat?.color}}><CategoryIcon name={cat?.icon || 'dots'} size={17}/></span><span className="history-category">{cat?.name || 'Category'}</span><strong>{formatMoney(amount)}</strong></div>})}</section>
+        {trips&&<div><dt>Trips</dt><dd>{formatMoney(totals.trips)}</dd></div>}</dl></section></div>
+      <section className="year-categories"><h2>Top categories</h2>{!totals.ranked.length&&<p>No spending for this selection.</p>}
+        <div className="category-grid">{totals.ranked.map(({id,amount})=>{const cat=props.categories.find(c=>c.id===id)
+          return <div key={id} className="category-card year-category"><span className="glyph" style={{color:cat?.color}}><CategoryIcon name={cat?.icon || 'dots'} size={20}/></span>
+            <span>{cat?.name || 'Category'}<strong>{formatMoney(amount)}</strong></span></div>})}</div></section>
     </>}
   </section>
 }

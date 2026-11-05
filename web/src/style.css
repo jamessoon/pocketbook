@@ -63,3 +63,17 @@ body{margin:0;background:var(--bg);color:var(--text)}button,input,select,textare
 .year-legend{margin:8px 0}.year-legend>div{display:flex;flex-wrap:wrap;gap:2px 8px}
 .year-legend button{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;padding:4px 7px;font-size:14px;user-select:none;-webkit-touch-callout:none;touch-action:pan-y}
 .year-legend button span{width:10px;height:10px;border-radius:2px}.year-legend button[aria-pressed=false]{color:var(--muted);text-decoration:line-through}.year-legend button[aria-pressed=false] span{opacity:.35}
+
+.year-head,.year-toolbar,.year-back{display:flex;align-items:center;gap:10px}
+.year-head,.year-toolbar{justify-content:space-between}
+.year-head small{display:block;margin-bottom:6px}
+.year-back{min-height:44px;color:var(--accent);font-weight:600;text-decoration:none}
+.year-toolbar{flex-wrap:wrap}.year-toolbar .month-nav{margin:0}
+.year-cards{align-items:start}.year-cards>.card{min-width:0}
+.year-summary .hero-num{margin-bottom:12px}.year-breakdown{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.year-category{gap:10px}.year-category>span:last-child{font-size:14px;font-weight:600}.year-category strong{display:block;font-size:13px;color:var(--muted);font-weight:500}
+.year-legend button[aria-pressed]{border:1px solid var(--line);border-radius:9px}
+.year-legend button[aria-pressed=true]{background:var(--bg)}
+.year-legend>div{gap:6px;margin-top:6px}
+@media(min-width:951px){.year-cards{grid-template-columns:minmax(0,1.65fr) minmax(220px,1fr)}}
+@media(max-width:720px){.year-head h1{font-size:28px}.year-toolbar{gap:4px}.year-toolbar .history-controls{gap:10px;font-size:14px}}
