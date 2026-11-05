@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('separates explicit report sends from automatic monthly deduplication',async()=>{
+    await database.exec(readFileSync(new URL('./manual_report_sends.sql',import.meta.url),'utf8'));
+  });
   it('scopes report statistics, recipients and retryable report leases',async()=>{
     await database.exec(readFileSync(new URL('./monthly_reports.sql',import.meta.url),'utf8'));
   });
