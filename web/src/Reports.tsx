@@ -32,13 +32,12 @@ export function ReportSettings({household}:{household:Household}){
     {(save.error || query.error) && <p role="alert">{problem(save.error || query.error)}</p>}
   </section>
 }
-interface Report {id:string;month:string;stats:ReportStats;ai_text:string|null;sent_at:string|null}
+interface Report {id:string;month:string;stats:ReportStats;sent_at:string|null}
 function ReportDetail({report}:{report:Report}){
   const s=report.stats
   return <><section className="card"><small>Household spending</small><strong className="hero-num">{cash(s.total)}</strong>
-    <dl>{[['Monthly budget',cash(s.budget)],['Fixed costs',cash(s.fixed)],['Day-to-day',cash(s.daily)],['Previous month',cash(s.previous)],
+    <dl>{[['Monthly budget',cash(s.budget)],[s.total>s.budget?'Over budget':'Budget remaining',cash(Math.abs(s.budget-s.total))],['Fixed costs',cash(s.fixed)],['Day-to-day',cash(s.daily)],['Previous month',cash(s.previous)],
       ['Days over daily budget',s.days_over],['Unconfirmed entries',s.unconfirmed]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
-    <section className="card"><h2>Monthly analysis</h2><p className="report-prose">{report.ai_text || 'Analysis is pending. Retry the report to finish it.'}</p></section>
     <section className="card"><h2>By category</h2>{!s.categories.length&&<p>No household spending.</p>}{s.categories.map(c=><div className="trip-row" key={c.id}><span>{c.name}<small>Previous {cash(c.previous)} · Prior 3-month average {cash(c.prior_average)}</small></span><strong>{cash(c.amount)}</strong></div>)}</section>
     {!!s.largest.length&&<section className="card"><h2>Largest expenses</h2>{s.largest.map((e,i)=><div className="trip-row" key={i}><span>{e.description}<small>{e.spent_on}{e.trip?' · Trip':''}</small></span><strong>{cash(e.amount)}</strong></div>)}</section>}
     {!!s.trips.length&&<section className="card"><h2>Trip spending</h2>{s.trips.map((t,i)=><div className="trip-row" key={i}>{t.name}<strong>{cash(t.amount)}</strong></div>)}</section>}
@@ -49,7 +48,7 @@ export function Reports({household}:{household:Household}){
   const [selected,setSelected]=useState(''),[notice,setNotice]=useState('')
   const key=['reports',household.id]
   const query=useQuery({queryKey:key,queryFn:async()=>{
-    const {data,error}=await supabase.from('reports').select('id,month,stats,ai_text,sent_at').eq('household_id',household.id).order('month',{ascending:false})
+    const {data,error}=await supabase.from('reports').select('id,month,stats,sent_at').eq('household_id',household.id).order('month',{ascending:false})
     if(error)throw error
     return data as Report[]
   }})
@@ -71,7 +70,7 @@ export function Reports({household}:{household:Household}){
     {notice&&<p role="status">{notice}</p>}{(query.error || send.error)&&<p role="alert">{problem(send.error || query.error)}</p>}
     {query.isPending?<p>Loading reports…</p>:report?<><div className="section-head"><label>Report month <select aria-label="Report month" value={report.month} onChange={e=>setSelected(e.target.value)}>
       {query.data?.map(r=><option key={r.id} value={r.month}>{monthName(r.month)}</option>)}</select></label>
-      <small>{report.sent_at?'Email sent':report.ai_text?'Saved':'Preparing'}</small></div><ReportDetail report={report}/></>:
+      <small>{report.sent_at?'Email sent':'Saved'}</small></div><ReportDetail report={report}/></>:
       !query.error&&<section className="card"><h2>No reports yet</h2><p>Prepare last month’s report above, or wait for the monthly schedule.</p></section>}
   </section>
 }

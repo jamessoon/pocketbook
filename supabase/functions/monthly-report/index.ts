@@ -1,5 +1,5 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.49.8';
-import {analyze,deliverEmail,emailPayload,type ReportStats} from './report.ts';
+import {deliverEmail,emailPayload,type ReportStats} from './report.ts';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,apikey,x-client-info,content-type','Cache-Control':'no-store'};
 const reply=(status:number,data:unknown)=>Response.json(data,{status,headers:cors});
 const env=(key:string)=>Deno.env.get(key) || '';
@@ -33,14 +33,9 @@ Deno.serve(async req=>{
     if(work.status!=='claimed')return reply(200,{status:work.status});
     reportId=work.id;
     const stats:ReportStats=work.stats;
-    let analysis:string=work.ai_text;
     async function ownedUpdate(fields:Record<string,unknown>){
       const result=await db.from('reports').update(fields).eq('id',work.id).eq('lease',lease).select('id').maybeSingle();
       if(result.error || !result.data)throw new Error('Report lease expired; retry from Reports.');
-    }
-    if(!analysis){
-      analysis=await analyze(stats,{provider:env('AI_PROVIDER') || 'openai',model:env('AI_MODEL'),key:env('AI_API_KEY')});
-      await ownedUpdate({ai_text:analysis});
     }
     const recipients=await db.from('report_recipients').select('email').eq('household_id',household);
     if(recipients.error)throw new Error('Could not read report recipients.');
@@ -55,12 +50,15 @@ Deno.serve(async req=>{
         const current=await db.from('report_recipients').select('email').eq('household_id',household).eq('email',email).maybeSingle();
         if(current.error)throw new Error('Could not check the email subscription.');
         if(!current.data)continue;
-        const saved=await db.from('report_deliveries').upsert({report_id:reportId,email,payload:emailPayload(stats,analysis,from,email)},
+        const saved=await db.from('report_deliveries').upsert({report_id:reportId,email,payload:emailPayload(stats,from,email)},
           {onConflict:'report_id,email',ignoreDuplicates:true});
         if(saved.error)throw new Error('Could not prepare email delivery.');
         const lookup=await db.from('report_deliveries').select('id,payload,first_attempt,provider_id').eq('report_id',reportId).eq('email',email).single();
         if(lookup.error)throw new Error('Could not read delivery status.');
         const delivery=lookup.data;
+        if(!delivery.provider_id && work.ai_text && delivery.payload.text.endsWith('\n\n'+work.ai_text)){
+          throw new Error('A pending email from the earlier report format needs a Resend dashboard check before retrying.');
+        }
         await deliverEmail(delivery,resend,async providerId=>{
           const mark=await db.from('report_deliveries').update({provider_id:providerId}).eq('id',delivery.id);
           if(mark.error)throw new Error('Could not record the accepted delivery. Retry from Reports.');

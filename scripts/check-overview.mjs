@@ -31,7 +31,7 @@ try{
       return route.fulfill({json:method==='GET'?recipients:null})
     }
     if(table==='monthly-report'){
-      report={id:'rep1',month:'2025-05-01',ai_text:'Monthly test analysis.',sent_at:'2025-06-01',stats:{
+      report={id:'rep1',month:'2025-05-01',sent_at:'2025-06-01',stats:{
         total:100,budget:2000,fixed:80,daily:20,previous:90,days_over:1,unconfirmed:0,categories:[],trips:[],largest:[]}}
       return route.fulfill({json:{status:'sent'}})
     }
@@ -122,7 +122,8 @@ try{
    await page.getByRole('link',{name:'Reports',exact:true}).click()
    await page.getByRole('heading',{name:'No reports yet'}).waitFor()
    await page.getByRole('button',{name:'Send last month’s report now'}).click()
-   await page.getByText('Monthly test analysis.').waitFor()
+   await page.getByText('Budget remaining',{exact:true}).waitFor()
+   assert.equal(await page.getByRole('heading',{name:'Monthly analysis'}).count(),0)
    assert.equal(await page.locator('.hero-num').innerText(),'$100.00')
    await page.getByRole('link',{name:'Recipients'}).click()
    await page.getByLabel('Remove test@example.test').click()
