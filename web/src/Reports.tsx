@@ -2,7 +2,7 @@ import {useEffect,useState} from 'react'
 import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'
 import {Link,useLocation} from 'react-router-dom'
 import {supabase} from './client'
-import {cash,monthName,type ReportStats} from '../../supabase/functions/monthly-report/report'
+import {cash,monthName,highlights,spendingChange,type ReportStats} from '../../supabase/functions/monthly-report/report'
 import type {Household} from './types'
 
 const problem=(e:unknown)=>e && typeof e==='object' && 'message' in e ? String(e.message) : 'Please try again.'
@@ -35,9 +35,13 @@ export function ReportSettings({household}:{household:Household}){
 interface Report {id:string;month:string;stats:ReportStats;sent_at:string|null}
 function ReportDetail({report}:{report:Report}){
   const s=report.stats
-  return <><section className="card"><small>Household spending</small><strong className="hero-num">{cash(s.total)}</strong>
+  const {change,highest,top}=highlights(s)
+  return <><section className="card"><small>Household spending</small><strong className="hero-num">{cash(s.total)}</strong><p>{change}</p>
     <dl>{[['Monthly budget',cash(s.budget)],[s.total>s.budget?'Over budget':'Budget remaining',cash(Math.abs(s.budget-s.total))],['Fixed costs',cash(s.fixed)],['Day-to-day',cash(s.daily)],['Previous month',cash(s.previous)],
       ['Days over daily budget',s.days_over],['Unconfirmed entries',s.unconfirmed]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
+    <section className="card"><h2>Highest expense</h2>{highest?<p>{highest.description} · <strong>{cash(highest.amount)}</strong><br/><small>{highest.spent_on}{highest.trip?' · Trip':''}</small></p>:<p>No expenses this month.</p>}
+      <h2>Highest-spending categories</h2>{!top.length&&<p>No household spending.</p>}{top.map((c,i)=><div className="trip-row" key={c.id}><span>{i+1}. {c.name}<small>{spendingChange(c.amount,c.previous)}</small></span><strong>{cash(c.amount)}</strong></div>)}</section>
+    <section className="card"><h2>New descriptions vs last month</h2>{s.new_descriptions?.length?s.new_descriptions.map(d=><div className="trip-row" key={d.description}><span>{d.description}<small>{d.entries} {d.entries===1?'entry':'entries'}</small></span><strong>{cash(d.amount)}</strong></div>):<p>{s.new_descriptions?'No new descriptions.':'Description comparison unavailable for this snapshot.'}</p>}</section>
     <section className="card"><h2>By category</h2>{!s.categories.length&&<p>No household spending.</p>}{s.categories.map(c=><div className="trip-row" key={c.id}><span>{c.name}<small>Previous {cash(c.previous)} · Prior 3-month average {cash(c.prior_average)}</small></span><strong>{cash(c.amount)}</strong></div>)}</section>
     {!!s.largest.length&&<section className="card"><h2>Largest expenses</h2>{s.largest.map((e,i)=><div className="trip-row" key={i}><span>{e.description}<small>{e.spent_on}{e.trip?' · Trip':''}</small></span><strong>{cash(e.amount)}</strong></div>)}</section>}
     {!!s.trips.length&&<section className="card"><h2>Trip spending</h2>{s.trips.map((t,i)=><div className="trip-row" key={i}>{t.name}<strong>{cash(t.amount)}</strong></div>)}</section>}
