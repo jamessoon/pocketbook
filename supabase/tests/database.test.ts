@@ -35,6 +35,9 @@ beforeAll(async () => {
 afterAll(async () => { await database.close(); });
 
 describe('household security', () => {
+  it('scopes trip edits, protects history and excludes trips from household spending', async () => {
+    await database.exec(readFileSync(new URL('./trips.sql', import.meta.url), 'utf8'));
+  });
   it('scopes widget reads and writes and revokes rotated tokens', async () => {
     await database.exec(readFileSync(new URL('./widget.sql', import.meta.url), 'utf8'));
   });
