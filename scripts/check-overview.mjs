@@ -11,6 +11,7 @@ try{
   for(const width of [375,1200]){
    const page=await browser.newPage({viewport:{width,height:width===375?667:800},colorScheme:theme})
    const errors=[]
+   let bill=null
    page.on('pageerror',e=>errors.push(e.message))
    await page.addInitScript(()=>{
     const user={id:'user1',aud:'authenticated',role:'authenticated',email:'test@example.invalid',app_metadata:{},user_metadata:{}}
@@ -19,7 +20,15 @@ try{
    await page.route('https://hh-test.supabase.co/**',async route=>{
     const url=new URL(route.request().url())
     const table=url.pathname.split('/').pop()
-    const result=table==='members'?[member]
+    if(table==='recurring_items'){
+      const method=route.request().method()
+      if(method==='POST' || method==='PATCH'){
+        bill={...bill,...route.request().postDataJSON(),id:'bill1'}
+        return route.fulfill({status:200,json:{id:bill.id}})
+      }
+      return route.fulfill({status:200,json:bill?[bill]:[]})
+    }
+    const result=table==='members' ?[member]
       :table==='trips'?[]:table==='households'?household:table==='categories'?[category]
       :table==='month_summary'?{monthly_budget:2000,fixed_costs:100,day_to_day_spent:12,daily_budget:60,left_today:48,remaining:1888,fixed_items:[]}
       :[{id:'expense1',category_id:'food',is_fixed:false,amount_sgd:12},{id:'fixed1',category_id:'food',is_fixed:true,amount_sgd:100}]
@@ -37,6 +46,23 @@ try{
    assert.ok(await page.getByLabel('Add Food & drink expense').getAttribute('href')==='/add?category=food')
    assert.ok(await page.getByRole('link',{name:/expense to confirm/}).isVisible())
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+   await page.getByRole('link',{name:'Recurring costs'}).click()
+   await page.getByRole('button',{name:'New bill'}).click()
+   await page.getByLabel('Bill name').fill('Internet')
+   await page.getByLabel('Category',{exact:true}).selectOption('food')
+   await page.getByLabel('Amount type').selectOption('variable')
+   await page.getByLabel('Estimate (SGD)').fill('45')
+   await page.getByLabel('Frequency').selectOption('3')
+   await page.getByLabel('Day due').fill('31')
+   await page.getByRole('button',{name:'Save recurring cost'}).click()
+   await page.getByRole('link',{name:/Internet/}).click()
+   await page.getByLabel('Active',{exact:true}).uncheck()
+   await page.getByRole('button',{name:'Save recurring cost'}).click()
+   await page.getByText(/Day 31 · Paused/).waitFor()
+   assert.equal(bill.amount,45)
+   assert.equal(bill.interval_months,3)
+   assert.equal(bill.active,false)
+   await page.goto(origin)
    await page.getByLabel('Quick add: Food & drink').click()
    await page.getByRole('button',{name:'Food & drink',exact:true,pressed:true}).waitFor()
    assert.deepEqual(errors,[])

@@ -50,7 +50,7 @@ Review `git status` and check the environment files are ignored. Commit the Phas
 
 Open the deployed HTTPS URL in Safari, tap **Share → Add to Home Screen**, enable **Open as Web App** if offered, then tap **Add**. Open HHExpense from its Home Screen icon and sign in there. In Settings try System, Light and Dark. Quick add opens from a category’s plus button or **Add expense**. Tap keypad digits, pick a suggestion, and save. Check both members see the entry. Test a foreign-currency expense, edit it, confirm its statement amount and try deletion with Undo.
 
-The service worker caches the versioned app shell. Household records and API responses require a connection. Trips are covered in step 7. Recurring posting and emailed reports are later deliveries.
+The service worker caches the versioned app shell. Household records and API responses require a connection. Trips are covered in step 7. Recurring bills are covered in step 8. Emailed reports are a later delivery.
 
 ## Repeat the Phase 1 checks
 
@@ -87,3 +87,10 @@ These browser scripts intercept backend traffic and exercise light and dark mode
 Apply `supabase/migrations/202611050006_trips.sql` once to enable trip creation and editing. From **Trips**, create a trip with dates and an optional SGD budget. Open it and use **Add expense**. You can also select a trip in the regular keypad, or edit an existing expense to move it into or out of a trip.
 
 If exactly one unarchived trip covers today, quick add selects it by default. Choose **No trip** for everyday purchases. Overlapping trips require a choice. Trip totals include estimates until confirmed. Monthly and daily household budgets exclude trip spending. Archiving a trip preserves its expense history.
+## 8. Recurring bills and daily posting
+
+1. Apply `supabase/migrations/202611050007_recurring.sql` in your hosted Supabase SQL Editor.
+2. Deploy `supabase/functions/post-recurring/index.ts` as an Edge Function named **post-recurring**. Turn **Verify JWT with legacy secret** off, or use `supabase functions deploy post-recurring --no-verify-jwt`. The function verifies a dedicated scheduler secret through the database; this secret is generated privately by the migration.
+3. In Supabase enable **Cron (pg_cron)** and **pg_net**. Run `supabase/jobs/schedule-recurring.sql` as project administrator. It targets the production HHExpense project and registers one named job at **16:05 UTC**, which is **00:05 Singapore time** the next day. Re-running the script updates the named schedule. Check Cron run history and the post-recurring Function logs after its first run.
+4. In HHExpense choose **Overview → Household budget → Recurring costs → New bill**. Select category, schedule, start month and amount. For a variable bill enter an estimate; when it posts, **To confirm** lets you enter the actual SGD charge. A due day of 31 falls on the last day of shorter months.
+5. New or reactivated schedules start posting from the current month at the earliest, even if an earlier start month sets their cadence. Bills already due are posted on the next job run. Active schedules catch up missed runs, and retries skip already processed months. Pause a schedule by editing it and clearing **Active**. The posted expense history is retained.

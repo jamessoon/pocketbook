@@ -3,6 +3,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "web/dist",
   "rewrites": [
+    {"source":"/recurring","destination":"/index.html"},
     {"source":"/trips","destination":"/index.html"},
     {
       "source": "/add",

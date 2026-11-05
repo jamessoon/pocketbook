@@ -49,3 +49,6 @@ body{margin:0;background:var(--bg);color:var(--text)}button,input,select,textare
 .trip-list .trip-row:last-child{border-bottom:0}
 .trip-list-budget{white-space:nowrap;color:var(--muted);font-size:14px}
 .trip-list-budget span{margin-left:6px}
+
+.recurring-editor select{min-width:0;width:100%;min-height:46px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font:inherit;font-size:16px}
+.budget>.section-head{margin-bottom:14px}

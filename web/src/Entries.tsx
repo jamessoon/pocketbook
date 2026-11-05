@@ -132,7 +132,7 @@ function ExpenseForm({ household, categories, original, preselected, requestedTr
       const fields = {
         trip_id: tripId || null, category_id: categoryId, description: description.trim(), spent_on: date, original_amount: amountValue,
         original_currency: currency, amount_sgd: sgdAmount, fx_rate_estimate: foreign ? rate || null : null,
-        sgd_confirmed: sameMoney ? original.sgd_confirmed : !foreign,
+        sgd_confirmed: original && (sameMoney || original.is_fixed) ? original.sgd_confirmed : !foreign,
       };
       if (original) {
         const result = await supabase.from("expenses").update(fields).eq("household_id", household.id).eq("id", original.id)
@@ -314,7 +314,7 @@ function ListBody({ household, month, members, categories, category }: EntryProp
       <span>{formatMoney(expenses.reduce((total, e) => total + Number(e.amount_sgd), 0))} on this page</span></header>
       <div className="ee-list">{expenses.map(e => {
         const cat = categories.find(c => c.id === e.category_id);
-        const person = e.created_by ? members.find(m => m.user_id === e.created_by)?.display_name || "Household member" : "Household widget";
+        const person = !e.created_by && e.is_fixed ? "Recurring bill" : e.created_by ? members.find(m => m.user_id === e.created_by)?.display_name || "Household member" : "Household widget";
         return <div className="ee-row" key={e.id}>
           <button className="ee-row-main" onClick={() => navigate("/add?edit=" + e.id)}><CategoryGlyph category={cat}/>
             <span><strong>{e.description || cat?.name}</strong><small>{cat?.name} · {person}</small>
